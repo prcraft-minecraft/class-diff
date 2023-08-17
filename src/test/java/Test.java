@@ -5,6 +5,8 @@ import io.github.prcraftmc.classdiff.format.DiffWriter;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Target;
 import java.nio.charset.StandardCharsets;
 
 public class Test {
@@ -24,6 +26,7 @@ public class Test {
         ClassPatcher.patch(helloNode, new DiffReader(result));
     }
 
+    @Target({ElementType.TYPE, ElementType.TYPE_USE})
     public @interface Inner {
     }
 }

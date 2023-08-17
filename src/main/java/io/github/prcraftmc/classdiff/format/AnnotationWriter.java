@@ -1,6 +1,6 @@
 package io.github.prcraftmc.classdiff.format;
 
-import io.github.prcraftmc.classdiff.ReflectUtils;
+import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ByteVector;
 import org.objectweb.asm.Opcodes;

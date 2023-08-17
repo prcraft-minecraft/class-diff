@@ -6,6 +6,7 @@ import com.nothome.delta.Delta;
 import io.github.prcraftmc.classdiff.format.DiffConstants;
 import io.github.prcraftmc.classdiff.format.DiffVisitor;
 import io.github.prcraftmc.classdiff.util.Equalizers;
+import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
@@ -119,6 +120,22 @@ public class ClassDiffer {
                 original.invisibleAnnotations != null ? original.invisibleAnnotations : Collections.emptyList(),
                 modified.invisibleAnnotations != null ? modified.invisibleAnnotations : Collections.emptyList(),
                 Equalizers::annotation
+            ), false);
+        }
+
+        if (!Equalizers.listEquals(original.visibleTypeAnnotations, modified.visibleTypeAnnotations, Equalizers::typeAnnotation)) {
+            output.visitTypeAnnotations(DiffUtils.diff(
+                original.visibleTypeAnnotations != null ? original.visibleTypeAnnotations : Collections.emptyList(),
+                modified.visibleTypeAnnotations != null ? modified.visibleTypeAnnotations : Collections.emptyList(),
+                Equalizers::typeAnnotation
+            ), true);
+        }
+
+        if (!Equalizers.listEquals(original.invisibleTypeAnnotations, modified.invisibleTypeAnnotations, Equalizers::typeAnnotation)) {
+            output.visitTypeAnnotations(DiffUtils.diff(
+                original.invisibleTypeAnnotations != null ? original.invisibleTypeAnnotations : Collections.emptyList(),
+                modified.invisibleTypeAnnotations != null ? modified.invisibleTypeAnnotations : Collections.emptyList(),
+                Equalizers::typeAnnotation
             ), false);
         }
 

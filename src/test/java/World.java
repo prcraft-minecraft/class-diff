@@ -1,5 +1,5 @@
 @Test.Inner
-public class World implements Runnable, Comparable<Object> {
+public class World implements Runnable, Comparable<@Test.Inner Object> {
     public static void main(String[] args) {
         System.out.println("Hello, world!");
         System.out.println(Test.Inner.class);

@@ -4,6 +4,7 @@ import com.github.difflib.patch.Patch;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.InnerClassNode;
+import org.objectweb.asm.tree.TypeAnnotationNode;
 
 public class DiffVisitor {
     @Nullable
@@ -79,6 +80,12 @@ public class DiffVisitor {
     public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
         if (delegate != null) {
             delegate.visitAnnotations(patch, visible);
+        }
+    }
+
+    public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
+        if (delegate != null) {
+            delegate.visitTypeAnnotations(patch, visible);
         }
     }
 

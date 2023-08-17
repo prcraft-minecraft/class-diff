@@ -1,12 +1,13 @@
 package io.github.prcraftmc.classdiff.format;
 
 import com.github.difflib.patch.Patch;
-import io.github.prcraftmc.classdiff.ReflectUtils;
 import io.github.prcraftmc.classdiff.util.PatchWriter;
+import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ByteVector;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.InnerClassNode;
+import org.objectweb.asm.tree.TypeAnnotationNode;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -18,6 +19,12 @@ public class DiffWriter extends DiffVisitor {
         vec.putShort(symbolTable.addConstantClass(value).index)
     );
     private final PatchWriter<AnnotationNode> annotationPatchWriter = new PatchWriter<>((vec, value) -> {
+        vec.putShort(symbolTable.addConstantUtf8(value.desc)).putShort(0);
+        value.accept(new AnnotationWriter(symbolTable, true, vec));
+    });
+    private final PatchWriter<TypeAnnotationNode> typeAnnotationPatchWriter = new PatchWriter<>((vec, value) -> {
+        ReflectUtils.invokeTypeReferencePutTarget(value.typeRef, vec);
+        ReflectUtils.invokeTypePathPut(value.typePath, vec);
         vec.putShort(symbolTable.addConstantUtf8(value.desc)).putShort(0);
         value.accept(new AnnotationWriter(symbolTable, true, vec));
     });
@@ -47,6 +54,9 @@ public class DiffWriter extends DiffVisitor {
 
     private ByteVector visibleAnnotations;
     private ByteVector invisibleAnnotations;
+
+    private ByteVector visibleTypeAnnotations;
+    private ByteVector invisibleTypeAnnotations;
 
     private final Map<Integer, byte @Nullable []> attributes = new LinkedHashMap<>();
 
@@ -151,6 +161,19 @@ public class DiffWriter extends DiffVisitor {
     }
 
     @Override
+    public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
+        super.visitTypeAnnotations(patch, visible);
+
+        final ByteVector vector = new ByteVector();
+        if (visible) {
+            visibleTypeAnnotations = vector;
+        } else {
+            invisibleTypeAnnotations = vector;
+        }
+        typeAnnotationPatchWriter.write(vector, patch);
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         super.visitCustomAttribute(name, patchOrContents);
 
@@ -194,6 +217,14 @@ public class DiffWriter extends DiffVisitor {
         }
         if (invisibleAnnotations != null) {
             symbolTable.addConstantUtf8("InvisibleAnnotations");
+            attributeCount++;
+        }
+        if (visibleTypeAnnotations != null) {
+            symbolTable.addConstantUtf8("VisibleTypeAnnotations");
+            attributeCount++;
+        }
+        if (invisibleTypeAnnotations != null) {
+            symbolTable.addConstantUtf8("InvisibleTypeAnnotations");
             attributeCount++;
         }
 
@@ -243,6 +274,14 @@ public class DiffWriter extends DiffVisitor {
         if (invisibleAnnotations != null) {
             result.putShort(symbolTable.addConstantUtf8("InvisibleAnnotations")).putInt(invisibleAnnotations.size());
             result.putByteArray(ReflectUtils.getByteVectorData(invisibleAnnotations), 0, invisibleAnnotations.size());
+        }
+        if (visibleTypeAnnotations != null) {
+            result.putShort(symbolTable.addConstantUtf8("VisibleTypeAnnotations")).putInt(visibleTypeAnnotations.size());
+            result.putByteArray(ReflectUtils.getByteVectorData(visibleTypeAnnotations), 0, visibleTypeAnnotations.size());
+        }
+        if (invisibleTypeAnnotations != null) {
+            result.putShort(symbolTable.addConstantUtf8("InvisibleTypeAnnotations")).putInt(invisibleTypeAnnotations.size());
+            result.putByteArray(ReflectUtils.getByteVectorData(invisibleTypeAnnotations), 0, invisibleTypeAnnotations.size());
         }
         for (final Map.Entry<Integer, byte @Nullable []> entry : attributes.entrySet()) {
             result.putShort(entry.getKey());

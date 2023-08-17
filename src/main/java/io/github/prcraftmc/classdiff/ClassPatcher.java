@@ -5,6 +5,7 @@ import com.github.difflib.patch.PatchFailedException;
 import com.nothome.delta.GDiffPatcher;
 import io.github.prcraftmc.classdiff.format.DiffReader;
 import io.github.prcraftmc.classdiff.format.DiffVisitor;
+import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
@@ -12,6 +13,7 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InnerClassNode;
+import org.objectweb.asm.tree.TypeAnnotationNode;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -142,24 +144,39 @@ public class ClassPatcher extends DiffVisitor {
 
     @Override
     public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
-        if (visible) {
-            if (node.visibleAnnotations == null) {
-                node.visibleAnnotations = Collections.emptyList();
-            }
-            try {
+        try {
+            if (visible) {
+                if (node.visibleAnnotations == null) {
+                    node.visibleAnnotations = Collections.emptyList();
+                }
                 node.visibleAnnotations = patch.applyTo(node.visibleAnnotations);
-            } catch (PatchFailedException e) {
-                throw new UncheckedPatchFailure(e);
-            }
-        } else {
-            if (node.invisibleAnnotations == null) {
-                node.invisibleAnnotations = Collections.emptyList();
-            }
-            try {
+            } else {
+                if (node.invisibleAnnotations == null) {
+                    node.invisibleAnnotations = Collections.emptyList();
+                }
                 node.invisibleAnnotations = patch.applyTo(node.invisibleAnnotations);
-            } catch (PatchFailedException e) {
-                throw new UncheckedPatchFailure(e);
             }
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
+        }
+    }
+
+    @Override
+    public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
+        try {
+            if (visible) {
+                if (node.visibleTypeAnnotations == null) {
+                    node.visibleTypeAnnotations = Collections.emptyList();
+                }
+                node.visibleTypeAnnotations = patch.applyTo(node.visibleTypeAnnotations);
+            } else {
+                if (node.invisibleTypeAnnotations == null) {
+                    node.invisibleTypeAnnotations = Collections.emptyList();
+                }
+                node.invisibleTypeAnnotations = patch.applyTo(node.invisibleTypeAnnotations);
+            }
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
         }
     }
 

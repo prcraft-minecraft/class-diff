@@ -1,12 +1,11 @@
-package io.github.prcraftmc.classdiff;
+package io.github.prcraftmc.classdiff.util;
 
 import org.jetbrains.annotations.ApiStatus;
-import org.objectweb.asm.Attribute;
-import org.objectweb.asm.ByteVector;
-import org.objectweb.asm.ConstantDynamic;
+import org.objectweb.asm.*;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 @ApiStatus.Internal
 public class ReflectUtils {
@@ -17,6 +16,11 @@ public class ReflectUtils {
     private static final Field BYTE_VECTOR_LENGTH;
 
     private static final Field CONSTANT_DYNAMIC_BOOTSTRAP_METHOD_ARGUMENTS;
+
+    private static final Constructor<TypePath> NEW_TYPE_PATH;
+    private static final Method TYPE_PATH_PUT;
+
+    private static final Method TYPE_REFERENCE_PUT_TARGET;
 
     static {
         try {
@@ -32,6 +36,14 @@ public class ReflectUtils {
 
             CONSTANT_DYNAMIC_BOOTSTRAP_METHOD_ARGUMENTS = ConstantDynamic.class.getDeclaredField("bootstrapMethodArguments");
             CONSTANT_DYNAMIC_BOOTSTRAP_METHOD_ARGUMENTS.setAccessible(true);
+
+            NEW_TYPE_PATH = TypePath.class.getDeclaredConstructor(byte[].class, int.class);
+            TYPE_PATH_PUT = TypePath.class.getDeclaredMethod("put", TypePath.class, ByteVector.class);
+            NEW_TYPE_PATH.setAccessible(true);
+            TYPE_PATH_PUT.setAccessible(true);
+
+            TYPE_REFERENCE_PUT_TARGET = TypeReference.class.getDeclaredMethod("putTarget", int.class, ByteVector.class);
+            TYPE_REFERENCE_PUT_TARGET.setAccessible(true);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -80,6 +92,30 @@ public class ReflectUtils {
     public static Object[] getConstantDynamicBootstrapMethodArguments(ConstantDynamic constant) {
         try {
             return (Object[])CONSTANT_DYNAMIC_BOOTSTRAP_METHOD_ARGUMENTS.get(constant);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    public static TypePath newTypePath(byte[] typePathContainer, int typePathOffset) {
+        try {
+            return NEW_TYPE_PATH.newInstance(typePathContainer, typePathOffset);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    public static void invokeTypePathPut(TypePath typePath, ByteVector output) {
+        try {
+            TYPE_PATH_PUT.invoke(null, typePath, output);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    public static void invokeTypeReferencePutTarget(int targetTypeAndInfo, ByteVector output) {
+        try {
+            TYPE_REFERENCE_PUT_TARGET.invoke(null, targetTypeAndInfo, output);
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }

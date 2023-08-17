@@ -4,13 +4,12 @@ import com.github.difflib.patch.DeltaType;
 import com.github.difflib.patch.Patch;
 import io.github.prcraftmc.classdiff.util.ByteReader;
 import io.github.prcraftmc.classdiff.util.PatchReader;
-import org.objectweb.asm.AnnotationVisitor;
-import org.objectweb.asm.ConstantDynamic;
-import org.objectweb.asm.Handle;
-import org.objectweb.asm.Type;
+import io.github.prcraftmc.classdiff.util.ReflectUtils;
+import org.objectweb.asm.*;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InnerClassNode;
+import org.objectweb.asm.tree.TypeAnnotationNode;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -25,6 +24,17 @@ public class DiffReader {
         reader.pointer(readElementValues(result, reader.pointer() + 2, true));
         return result;
     });
+    private final PatchReader<TypeAnnotationNode> typeAnnotationPatchReader = new PatchReader<>(reader -> {
+        final Context context = this.context.get();
+        reader.pointer(readTypeAnnotationTarget(reader.pointer(), context));
+        final TypeAnnotationNode result = new TypeAnnotationNode(
+            context.currentTypeAnnotationTarget,
+            context.currentTypeAnnotationTargetPath,
+            readClass(reader.pointer())
+        );
+        reader.pointer(readElementValues(result, reader.pointer() + 2, true));
+        return result;
+    });
 
     private final byte[] contents;
 
@@ -36,6 +46,8 @@ public class DiffReader {
 
     private ConstantDynamic[] condyCache;
     private int[] bsmOffsets;
+
+    private final ThreadLocal<Context> context = new ThreadLocal<>();
 
     public DiffReader(byte[] contents) {
         this.contents = contents;
@@ -121,7 +133,9 @@ public class DiffReader {
         }
     }
 
-    public void accept(DiffVisitor visitor, ClassNode context) {
+    public void accept(DiffVisitor visitor, ClassNode node) {
+        context.set(new Context());
+
         int readPos;
         final Patch<String> interfacePatch;
         {
@@ -131,7 +145,7 @@ public class DiffReader {
             } else {
                 final ByteReader byteReader = new ByteReader(contents, startPos + 14);
                 interfacePatch = classPatchReader.readPatch(
-                    byteReader, context.interfaces != null ? context.interfaces : Collections.emptyList()
+                    byteReader, node.interfaces != null ? node.interfaces : Collections.emptyList()
                 );
                 readPos = byteReader.pointer();
             }
@@ -171,7 +185,7 @@ public class DiffReader {
                         );
                     }).readPatch(
                         new ByteReader(contents, readPos),
-                        context.innerClasses != null ? context.innerClasses : Collections.emptyList()
+                        node.innerClasses != null ? node.innerClasses : Collections.emptyList()
                     ));
                     break;
                 case "OuterClasses":
@@ -183,25 +197,37 @@ public class DiffReader {
                 case "NestMembers":
                     visitor.visitNestMembers(classPatchReader.readPatch(
                         new ByteReader(contents, readPos),
-                        context.nestMembers != null ? context.nestMembers : Collections.emptyList()
+                        node.nestMembers != null ? node.nestMembers : Collections.emptyList()
                     ));
                     break;
                 case "PermittedSubclasses":
                     visitor.visitPermittedSubclasses(classPatchReader.readPatch(
                         new ByteReader(contents, readPos),
-                        context.permittedSubclasses != null ? context.permittedSubclasses : Collections.emptyList()
+                        node.permittedSubclasses != null ? node.permittedSubclasses : Collections.emptyList()
                     ));
                     break;
                 case "VisibleAnnotations":
                     visitor.visitAnnotations(annotationPatchReader.readPatch(
                         new ByteReader(contents, readPos),
-                        context.visibleAnnotations != null ? context.visibleAnnotations : Collections.emptyList()
+                        node.visibleAnnotations != null ? node.visibleAnnotations : Collections.emptyList()
                     ), true);
                     break;
                 case "InvisibleAnnotations":
                     visitor.visitAnnotations(annotationPatchReader.readPatch(
                         new ByteReader(contents, readPos),
-                        context.invisibleAnnotations != null ? context.invisibleAnnotations : Collections.emptyList()
+                        node.invisibleAnnotations != null ? node.invisibleAnnotations : Collections.emptyList()
+                    ), false);
+                    break;
+                case "VisibleTypeAnnotations":
+                    visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
+                        new ByteReader(contents, readPos),
+                        node.visibleTypeAnnotations != null ? node.visibleTypeAnnotations : Collections.emptyList()
+                    ), true);
+                    break;
+                case "InvisibleTypeAnnotations":
+                    visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
+                        new ByteReader(contents, readPos),
+                        node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
                     ), false);
                     break;
                 default:
@@ -219,6 +245,8 @@ public class DiffReader {
             }
             readPos += attributeLength;
         }
+
+        context.remove();
     }
 
     private int readInt(int offset) {
@@ -532,5 +560,88 @@ public class DiffReader {
             bootstrapMethodOffset += 2;
         }
         return condyCache[constantPoolEntryIndex] = new ConstantDynamic(name, descriptor, handle, bootstrapMethodArguments);
+    }
+
+    private int readTypeAnnotationTarget(int typeAnnotationOffset, Context context) {
+        int currentOffset = typeAnnotationOffset;
+        // Parse and store the target_type structure.
+        int targetType = readInt(typeAnnotationOffset);
+        switch (targetType >>> 24) {
+            case TypeReference.CLASS_TYPE_PARAMETER:
+            case TypeReference.METHOD_TYPE_PARAMETER:
+            case TypeReference.METHOD_FORMAL_PARAMETER:
+                targetType &= 0xFFFF0000;
+                currentOffset += 2;
+                break;
+            case TypeReference.FIELD:
+            case TypeReference.METHOD_RETURN:
+            case TypeReference.METHOD_RECEIVER:
+                targetType &= 0xFF000000;
+                currentOffset += 1;
+                break;
+            case TypeReference.LOCAL_VARIABLE:
+            case TypeReference.RESOURCE_VARIABLE:
+                targetType &= 0xFF000000;
+                int tableLength = readShort(currentOffset + 1);
+                currentOffset += 3;
+                context.currentLocalVariableAnnotationRangeStarts = new Label[tableLength];
+                context.currentLocalVariableAnnotationRangeEnds = new Label[tableLength];
+                context.currentLocalVariableAnnotationRangeIndices = new int[tableLength];
+                for (int i = 0; i < tableLength; ++i) {
+                    int startPc = readShort(currentOffset);
+                    int length = readShort(currentOffset + 2);
+                    int index = readShort(currentOffset + 4);
+                    currentOffset += 6;
+                    context.currentLocalVariableAnnotationRangeStarts[i] =
+                        createLabel(startPc, context.currentMethodLabels);
+                    context.currentLocalVariableAnnotationRangeEnds[i] =
+                        createLabel(startPc + length, context.currentMethodLabels);
+                    context.currentLocalVariableAnnotationRangeIndices[i] = index;
+                }
+                break;
+            case TypeReference.CAST:
+            case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT:
+            case TypeReference.METHOD_INVOCATION_TYPE_ARGUMENT:
+            case TypeReference.CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT:
+            case TypeReference.METHOD_REFERENCE_TYPE_ARGUMENT:
+                targetType &= 0xFF0000FF;
+                currentOffset += 4;
+                break;
+            case TypeReference.CLASS_EXTENDS:
+            case TypeReference.CLASS_TYPE_PARAMETER_BOUND:
+            case TypeReference.METHOD_TYPE_PARAMETER_BOUND:
+            case TypeReference.THROWS:
+            case TypeReference.EXCEPTION_PARAMETER:
+                targetType &= 0xFFFFFF00;
+                currentOffset += 3;
+                break;
+            case TypeReference.INSTANCEOF:
+            case TypeReference.NEW:
+            case TypeReference.CONSTRUCTOR_REFERENCE:
+            case TypeReference.METHOD_REFERENCE:
+                targetType &= 0xFF000000;
+                currentOffset += 3;
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+        context.currentTypeAnnotationTarget = targetType;
+        // Parse and store the target_path structure.
+        int pathLength = contents[currentOffset] & 0xff;
+        context.currentTypeAnnotationTargetPath =
+            pathLength == 0 ? null : ReflectUtils.newTypePath(contents, currentOffset);
+        // Return the start offset of the rest of the type_annotation structure.
+        return currentOffset + 1 + 2 * pathLength;
+    }
+
+    private Label readLabel(int bytecodeOffset, Label[] labels) {
+        if (labels[bytecodeOffset] == null) {
+            labels[bytecodeOffset] = new Label();
+        }
+        return labels[bytecodeOffset];
+    }
+
+    private Label createLabel(int bytecodeOffset, Label[] labels) {
+        return readLabel(bytecodeOffset, labels);
     }
 }
