@@ -111,6 +111,11 @@ public class ClassPatcher extends DiffVisitor {
     }
 
     @Override
+    public void visitNestHost(@Nullable String nestHost) {
+        node.nestHostClass = nestHost;
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         if (patchOrContents == null) {
             node.attrs.removeIf(attr -> attr.type.equals(name));

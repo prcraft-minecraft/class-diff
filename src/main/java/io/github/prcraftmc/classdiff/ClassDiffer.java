@@ -88,6 +88,10 @@ public class ClassDiffer {
             );
         }
 
+        if (!Objects.equals(original.nestHostClass, modified.nestHostClass)) {
+            output.visitNestHost(modified.nestHostClass);
+        }
+
         {
             final Map<String, Attribute> bAttributes = new LinkedHashMap<>();
             if (modified.attrs != null) {

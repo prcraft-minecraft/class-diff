@@ -144,6 +144,9 @@ public class DiffReader {
                 case "OuterClasses":
                     visitor.visitOuterClass(readClass(readPos), readClass(readPos + 2), readClass(readPos + 4));
                     break;
+                case "NestHost":
+                    visitor.visitNestHost(readClass(readPos));
+                    break;
                 default:
                     if (attributeName.startsWith("Custom")) {
                         if (contents[readPos] != 0) {

@@ -34,6 +34,8 @@ public class DiffWriter extends DiffVisitor {
     private int outerMethod;
     private int outerMethodDesc;
 
+    private int nestHost;
+
     private final Map<Integer, byte @Nullable []> attributes = new LinkedHashMap<>();
 
     public DiffWriter() {
@@ -103,6 +105,13 @@ public class DiffWriter extends DiffVisitor {
     }
 
     @Override
+    public void visitNestHost(@Nullable String nestHost) {
+        super.visitNestHost(nestHost);
+
+        this.nestHost = nestHost != null ? symbolTable.addConstantClass(nestHost).index : 0;
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         super.visitCustomAttribute(name, patchOrContents);
 
@@ -126,6 +135,10 @@ public class DiffWriter extends DiffVisitor {
         }
         if (outerClass != 0 || outerMethod != 0 || outerMethodDesc != 0) {
             symbolTable.addConstantUtf8("OuterClass");
+            attributeCount++;
+        }
+        if (nestHost != 0) {
+            symbolTable.addConstantUtf8("NestHost");
             attributeCount++;
         }
 
@@ -155,6 +168,10 @@ public class DiffWriter extends DiffVisitor {
         if (outerClass != 0 || outerMethod != 0 || outerMethodDesc != 0) {
             result.putShort(symbolTable.addConstantUtf8("OuterClass")).putInt(6);
             result.putShort(outerClass).putShort(outerMethod).putShort(outerMethodDesc);
+        }
+        if (nestHost != 0) {
+            result.putShort(symbolTable.addConstantUtf8("NestHost")).putInt(2);
+            result.putShort(nestHost);
         }
         for (final Map.Entry<Integer, byte @Nullable []> entry : attributes.entrySet()) {
             result.putShort(entry.getKey());
