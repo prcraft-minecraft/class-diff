@@ -1,8 +1,14 @@
 package io.github.prcraftmc.classdiff.format;
 
+import com.github.difflib.patch.DeltaType;
 import com.github.difflib.patch.Patch;
 import io.github.prcraftmc.classdiff.util.ByteReader;
 import io.github.prcraftmc.classdiff.util.PatchReader;
+import org.objectweb.asm.AnnotationVisitor;
+import org.objectweb.asm.ConstantDynamic;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InnerClassNode;
 
@@ -11,8 +17,13 @@ import java.util.Collections;
 
 public class DiffReader {
     private final PatchReader<String> classPatchReader = new PatchReader<>(reader -> {
-        reader.readShort();
+        reader.skip(2);
         return readClass(reader.pointer() - 2);
+    });
+    private final PatchReader<AnnotationNode> annotationPatchReader = new PatchReader<>(reader -> {
+        final AnnotationNode result = new AnnotationNode(readClass(reader.pointer()));
+        reader.pointer(readElementValues(result, reader.pointer() + 2, true));
+        return result;
     });
 
     private final byte[] contents;
@@ -22,6 +33,9 @@ public class DiffReader {
     private String[] constantStringCache;
     private char[] charBuffer;
     private int startPos;
+
+    private ConstantDynamic[] condyCache;
+    private int[] bsmOffsets;
 
     public DiffReader(byte[] contents) {
         this.contents = contents;
@@ -46,6 +60,8 @@ public class DiffReader {
 
         int maxStringSize = 0;
         int pointer = 8;
+        boolean hasCondy = false;
+        boolean hasBsm = false;
         for (int i = 1; i < constantCount; i++) {
             constantOffsets[i] = pointer + 1;
             int size;
@@ -56,13 +72,21 @@ public class DiffReader {
                 case Symbol.CONSTANT_INTEGER_TAG:
                 case Symbol.CONSTANT_FLOAT_TAG:
                 case Symbol.CONSTANT_NAME_AND_TYPE_TAG:
+                    size = 5;
+                    break;
                 case Symbol.CONSTANT_DYNAMIC_TAG:
+                    size = 5;
+                    hasBsm = true;
+                    hasCondy = true;
+                    break;
                 case Symbol.CONSTANT_INVOKE_DYNAMIC_TAG:
                     size = 5;
+                    hasBsm = true;
                     break;
                 case Symbol.CONSTANT_LONG_TAG:
                 case Symbol.CONSTANT_DOUBLE_TAG:
                     size = 9;
+                    i++;
                     break;
                 case Symbol.CONSTANT_UTF8_TAG:
                     size = 3 + readShort(pointer + 1);
@@ -88,6 +112,13 @@ public class DiffReader {
         charBuffer = new char[maxStringSize];
 
         startPos = pointer;
+
+        if (hasCondy) {
+            condyCache = new ConstantDynamic[constantCount];
+        }
+        if (hasBsm) {
+            bsmOffsets = readBsmAttribute();
+        }
     }
 
     public void accept(DiffVisitor visitor, ClassNode context) {
@@ -131,8 +162,7 @@ public class DiffReader {
                     break;
                 case "InnerClasses":
                     visitor.visitInnerClasses(new PatchReader<>(reader -> {
-                        reader.readInt();
-                        reader.readShort();
+                        reader.skip(6);
                         return new InnerClassNode(
                             readClass(reader.pointer() - 6),
                             readClass(reader.pointer() - 4),
@@ -160,6 +190,18 @@ public class DiffReader {
                     visitor.visitPermittedSubclasses(classPatchReader.readPatch(
                         new ByteReader(contents, readPos),
                         context.permittedSubclasses != null ? context.permittedSubclasses : Collections.emptyList()
+                    ));
+                    break;
+                case "VisibleAnnotations":
+                    visitor.visitVisibleAnnotations(annotationPatchReader.readPatch(
+                        new ByteReader(contents, readPos),
+                        context.visibleAnnotations != null ? context.visibleAnnotations : Collections.emptyList()
+                    ));
+                    break;
+                case "InvisibleAnnotations":
+                    visitor.visitInvisibleAnnotations(annotationPatchReader.readPatch(
+                        new ByteReader(contents, readPos),
+                        context.invisibleAnnotations != null ? context.invisibleAnnotations : Collections.emptyList()
                     ));
                     break;
                 default:
@@ -237,5 +279,258 @@ public class DiffReader {
             }
         }
         return new String(charBuffer, 0, strLength);
+    }
+
+    private int readElementValues(AnnotationVisitor annotationVisitor, int currentOffset, boolean named) {
+        int numElementValuePairs = readShort(currentOffset);
+        currentOffset += 2;
+        if (named) {
+            while (numElementValuePairs-- > 0) {
+                final String elementName = readUtf8(currentOffset);
+                currentOffset = readElementValue(annotationVisitor, currentOffset + 2, elementName);
+            }
+        } else {
+            while (numElementValuePairs-- > 0) {
+                currentOffset = readElementValue(annotationVisitor, currentOffset, null);
+            }
+        }
+        annotationVisitor.visitEnd();
+        return currentOffset;
+    }
+
+    private int readElementValue(AnnotationVisitor annotationVisitor, int currentOffset, String elementName) {
+        switch (contents[currentOffset++] & 0xff) {
+            case 'B':
+                annotationVisitor.visit(elementName, (byte)readInt(constantOffsets[readShort(currentOffset)]));
+                currentOffset += 2;
+                break;
+            case 'C':
+                annotationVisitor.visit(elementName, (char)readInt(constantOffsets[readShort(currentOffset)]));
+                currentOffset += 2;
+                break;
+            case 'D':
+            case 'F':
+            case 'I':
+            case 'J':
+                annotationVisitor.visit(elementName, readConst(readShort(currentOffset)));
+                currentOffset += 2;
+                break;
+            case 'S':
+                annotationVisitor.visit(elementName, (short)readInt(constantOffsets[readShort(currentOffset)]));
+                currentOffset += 2;
+                break;
+            case 'Z':
+                annotationVisitor.visit(elementName, readInt(constantOffsets[readShort(currentOffset)]) != 0);
+                currentOffset += 2;
+                break;
+            case 's':
+                annotationVisitor.visit(elementName, readUtf8(currentOffset));
+                currentOffset += 2;
+                break;
+            case 'e':
+                annotationVisitor.visitEnum(elementName, readUtf8(currentOffset), readUtf8(currentOffset + 2));
+                currentOffset += 4;
+                break;
+            case 'c':
+                annotationVisitor.visit(elementName, Type.getType(readUtf8(currentOffset)));
+                currentOffset += 2;
+                break;
+            case '@':
+                currentOffset = readElementValues(
+                    annotationVisitor.visitAnnotation(elementName, readUtf8(currentOffset)),
+                    currentOffset + 2,
+                    true
+                );
+                break;
+            case '[': {
+                final int numValues = readShort(currentOffset);
+                currentOffset += 2;
+                if (numValues == 0) {
+                    return readElementValues(annotationVisitor.visitArray(elementName), currentOffset - 2, false);
+                }
+                switch (contents[currentOffset] & 0xff) {
+                    case 'B': {
+                        final byte[] values = new byte[numValues];
+                        for (int i = 0; i < numValues; i++) {
+                            values[i] = (byte)readInt(constantOffsets[readShort(currentOffset + 1)]);
+                            currentOffset += 3;
+                        }
+                        annotationVisitor.visit(elementName, values);
+                        break;
+                    }
+                    case 'Z': {
+                        final boolean[] values = new boolean[numValues];
+                        for (int i = 0; i < numValues; i++) {
+                            values[i] = readInt(constantOffsets[readShort(currentOffset + 2)]) != 0;
+                            currentOffset += 3;
+                        }
+                        annotationVisitor.visit(elementName, values);
+                        break;
+                    }
+                    case 'S': {
+                        final short[] values = new short[numValues];
+                        for (int i = 0; i < numValues; i++) {
+                            values[i] = (short)readInt(constantOffsets[readShort(currentOffset + 1)]);
+                            currentOffset += 3;
+                        }
+                        annotationVisitor.visit(elementName, values);
+                        break;
+                    }
+                    case 'C': {
+                        final char[] values = new char[numValues];
+                        for (int i = 0; i < numValues; i++) {
+                            values[i] = (char)readInt(constantOffsets[readShort(currentOffset + 1)]);
+                            currentOffset += 3;
+                        }
+                        annotationVisitor.visit(elementName, values);
+                        break;
+                    }
+                    case 'I': {
+                        final int[] values = new int[numValues];
+                        for (int i = 0; i < numValues; i++) {
+                            values[i] = readInt(constantOffsets[readShort(currentOffset + 1)]);
+                            currentOffset += 3;
+                        }
+                        annotationVisitor.visit(elementName, values);
+                        break;
+                    }
+                    case 'J': {
+                        final long[] values = new long[numValues];
+                        for (int i = 0; i < numValues; i++) {
+                            values[i] = readLong(constantOffsets[readShort(currentOffset + 1)]);
+                            currentOffset += 3;
+                        }
+                        annotationVisitor.visit(elementName, values);
+                        break;
+                    }
+                    case 'F': {
+                        final float[] values = new float[numValues];
+                        for (int i = 0; i < numValues; i++) {
+                            values[i] = Float.intBitsToFloat(readInt(constantOffsets[readShort(currentOffset + 1)]));
+                            currentOffset += 3;
+                        }
+                        annotationVisitor.visit(elementName, values);
+                        break;
+                    }
+                    case 'D': {
+                        final double[] values = new double[numValues];
+                        for (int i = 0; i < numValues; i++) {
+                            values[i] = Double.longBitsToDouble(readLong(constantOffsets[readShort(currentOffset + 1)]));
+                            currentOffset += 3;
+                        }
+                        annotationVisitor.visit(elementName, values);
+                        break;
+                    }
+                    default:
+                        currentOffset = readElementValues(annotationVisitor.visitArray(elementName), currentOffset - 2, false);
+                        break;
+                }
+                break;
+            }
+            default:
+                throw new IllegalArgumentException();
+        }
+        return currentOffset;
+    }
+
+    private Object readConst(int constantPoolEntryIndex) {
+        final int cpInfoOffset = constantOffsets[constantPoolEntryIndex];
+        switch (contents[cpInfoOffset - 1]) {
+            case Symbol.CONSTANT_INTEGER_TAG:
+                return readInt(cpInfoOffset);
+            case Symbol.CONSTANT_FLOAT_TAG:
+                return Float.intBitsToFloat(readInt(cpInfoOffset));
+            case Symbol.CONSTANT_LONG_TAG:
+                return readLong(cpInfoOffset);
+            case Symbol.CONSTANT_DOUBLE_TAG:
+                return Double.longBitsToDouble(readLong(cpInfoOffset));
+            case Symbol.CONSTANT_CLASS_TAG:
+                return Type.getObjectType(readUtf8(cpInfoOffset));
+            case Symbol.CONSTANT_STRING_TAG:
+                return readUtf8(cpInfoOffset);
+            case Symbol.CONSTANT_METHOD_TYPE_TAG:
+                return Type.getMethodType(readUtf8(cpInfoOffset));
+            case Symbol.CONSTANT_METHOD_HANDLE_TAG: {
+                final int referenceKind = contents[cpInfoOffset] & 0xff;
+                final int referenceCpInfoOffset = constantOffsets[readShort(cpInfoOffset + 1)];
+                final int nameAndTypeCpInfoOffset = constantOffsets[readShort(referenceCpInfoOffset + 2)];
+                final String owner = readClass(referenceCpInfoOffset);
+                final String name = readUtf8(nameAndTypeCpInfoOffset);
+                final String descriptor = readUtf8(nameAndTypeCpInfoOffset + 2);
+                final boolean isInterface = contents[referenceCpInfoOffset - 1] == Symbol.CONSTANT_INTERFACE_METHODREF_TAG;
+                return new Handle(referenceKind, owner, name, descriptor, isInterface);
+            }
+            case Symbol.CONSTANT_DYNAMIC_TAG:
+                return readConstantDynamic(constantPoolEntryIndex);
+            default:
+                throw new IllegalArgumentException();
+        }
+    }
+
+    private long readLong(int offset) {
+        return ((readInt(offset) & 0xffffffffL) << 32) | (readInt(offset + 4) & 0xffffffffL);
+    }
+
+    private int getFirstAttributeOffset() {
+        final int deltaCount = readShort(startPos + 14);
+        int offset = startPos + 16;
+        for (int i = 0; i < deltaCount; i++) {
+            switch (DeltaType.values()[contents[offset]]) {
+                case CHANGE:
+                    offset += 6 + 2 * readShort(offset + 4);
+                    break;
+                case DELETE:
+                    offset += 4;
+                    break;
+                case INSERT:
+                    offset += 4 + 2 * readShort(offset + 2);
+                    break;
+                case EQUAL:
+                    break;
+                default:
+                    throw new IllegalArgumentException();
+            }
+        }
+        return offset + 2;
+    }
+
+    private int[] readBsmAttribute() {
+        int currentAttributeOffset = getFirstAttributeOffset();
+        for (int i = readShort(currentAttributeOffset - 2); i > 0; i--) {
+            final String attrName = readUtf8(currentAttributeOffset);
+            final int attrLength = readInt(currentAttributeOffset + 2);
+            currentAttributeOffset += 6;
+            if ("BootstrapMethods".equals(attrName)) {
+                final int[] result = new int[readShort(currentAttributeOffset)];
+                int currentBsmOffset = currentAttributeOffset + 2;
+                for (int j = 0; j < result.length; j++) {
+                    result[j] = currentBsmOffset;
+                    currentBsmOffset += 4 + 2 * readShort(currentBsmOffset + 2);
+                }
+                return result;
+            }
+            currentAttributeOffset += attrLength;
+        }
+        throw new IllegalArgumentException();
+    }
+
+    private ConstantDynamic readConstantDynamic(int constantPoolEntryIndex) {
+        final ConstantDynamic result = condyCache[constantPoolEntryIndex];
+        if (result != null) {
+            return result;
+        }
+        final int cpInfoOffset = constantOffsets[constantPoolEntryIndex];
+        final int nameAndTypeCpInfoOffset = constantOffsets[readShort(cpInfoOffset + 2)];
+        final String name = readUtf8(nameAndTypeCpInfoOffset);
+        final String descriptor = readUtf8(nameAndTypeCpInfoOffset + 2);
+        int bootstrapMethodOffset = bsmOffsets[readShort(cpInfoOffset)];
+        final Handle handle = (Handle)readConst(readShort(bootstrapMethodOffset));
+        final Object[] bootstrapMethodArguments = new Object[readShort(bootstrapMethodOffset + 2)];
+        bootstrapMethodOffset += 4;
+        for (int i = 0; i < bootstrapMethodArguments.length; i++) {
+            bootstrapMethodArguments[i] = readConst(readShort(bootstrapMethodOffset));
+            bootstrapMethodOffset += 2;
+        }
+        return condyCache[constantPoolEntryIndex] = new ConstantDynamic(name, descriptor, handle, bootstrapMethodArguments);
     }
 }

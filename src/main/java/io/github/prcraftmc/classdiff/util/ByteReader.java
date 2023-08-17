@@ -22,6 +22,14 @@ public class ByteReader {
         return ptr;
     }
 
+    public void pointer(int at) {
+        ptr = at;
+    }
+
+    public void skip(int amount) {
+        ptr += amount;
+    }
+
     public int readByte() {
         return data[ptr++] & 0xff;
     }

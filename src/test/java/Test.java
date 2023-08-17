@@ -24,6 +24,6 @@ public class Test {
         ClassPatcher.patch(helloNode, new DiffReader(result));
     }
 
-    public static class Inner {
+    public @interface Inner {
     }
 }

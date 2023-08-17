@@ -2,6 +2,7 @@ package io.github.prcraftmc.classdiff.format;
 
 import com.github.difflib.patch.Patch;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.InnerClassNode;
 
 public class DiffVisitor {
@@ -72,6 +73,18 @@ public class DiffVisitor {
     public void visitPermittedSubclasses(Patch<String> patch) {
         if (delegate != null) {
             delegate.visitPermittedSubclasses(patch);
+        }
+    }
+
+    public void visitVisibleAnnotations(Patch<AnnotationNode> patch) {
+        if (delegate != null) {
+            delegate.visitVisibleAnnotations(patch);
+        }
+    }
+
+    public void visitInvisibleAnnotations(Patch<AnnotationNode> patch) {
+        if (delegate != null) {
+            delegate.visitInvisibleAnnotations(patch);
         }
     }
 

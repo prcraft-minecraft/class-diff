@@ -58,6 +58,8 @@ public class PatchReader<T> {
                 case EQUAL:
                     // EQUAL does nothing
                     break;
+                default:
+                    throw new IllegalArgumentException();
             }
         }
     }

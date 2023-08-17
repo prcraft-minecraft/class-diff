@@ -3,6 +3,7 @@ package io.github.prcraftmc.classdiff;
 import org.jetbrains.annotations.ApiStatus;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ByteVector;
+import org.objectweb.asm.ConstantDynamic;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -12,7 +13,10 @@ public class ReflectUtils {
     private static final Constructor<Attribute> NEW_ATTRIBUTE;
     private static final Field ATTRIBUTE_CONTENT;
 
-    private static final Field BYTEVECTOR_DATA;
+    private static final Field BYTE_VECTOR_DATA;
+    private static final Field BYTE_VECTOR_LENGTH;
+
+    private static final Field CONSTANT_DYNAMIC_BOOTSTRAP_METHOD_ARGUMENTS;
 
     static {
         try {
@@ -21,8 +25,13 @@ public class ReflectUtils {
             NEW_ATTRIBUTE.setAccessible(true);
             ATTRIBUTE_CONTENT.setAccessible(true);
 
-            BYTEVECTOR_DATA = ByteVector.class.getDeclaredField("data");
-            BYTEVECTOR_DATA.setAccessible(true);
+            BYTE_VECTOR_DATA = ByteVector.class.getDeclaredField("data");
+            BYTE_VECTOR_LENGTH = ByteVector.class.getDeclaredField("length");
+            BYTE_VECTOR_DATA.setAccessible(true);
+            BYTE_VECTOR_LENGTH.setAccessible(true);
+
+            CONSTANT_DYNAMIC_BOOTSTRAP_METHOD_ARGUMENTS = ConstantDynamic.class.getDeclaredField("bootstrapMethodArguments");
+            CONSTANT_DYNAMIC_BOOTSTRAP_METHOD_ARGUMENTS.setAccessible(true);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -54,7 +63,23 @@ public class ReflectUtils {
 
     public static byte[] getByteVectorData(ByteVector vector) {
         try {
-            return (byte[])BYTEVECTOR_DATA.get(vector);
+            return (byte[])BYTE_VECTOR_DATA.get(vector);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    public static void setByteVectorLength(ByteVector vector, int length) {
+        try {
+            BYTE_VECTOR_LENGTH.setInt(vector, length);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    public static Object[] getConstantDynamicBootstrapMethodArguments(ConstantDynamic constant) {
+        try {
+            return (Object[])CONSTANT_DYNAMIC_BOOTSTRAP_METHOD_ARGUMENTS.get(constant);
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }

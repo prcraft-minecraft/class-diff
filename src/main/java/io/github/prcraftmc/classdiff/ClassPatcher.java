@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InnerClassNode;
 
@@ -134,6 +135,30 @@ public class ClassPatcher extends DiffVisitor {
         }
         try {
             node.permittedSubclasses = patch.applyTo(node.permittedSubclasses);
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
+        }
+    }
+
+    @Override
+    public void visitVisibleAnnotations(Patch<AnnotationNode> patch) {
+        if (node.visibleAnnotations == null) {
+            node.visibleAnnotations = Collections.emptyList();
+        }
+        try {
+            node.visibleAnnotations = patch.applyTo(node.visibleAnnotations);
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
+        }
+    }
+
+    @Override
+    public void visitInvisibleAnnotations(Patch<AnnotationNode> patch) {
+        if (node.invisibleAnnotations == null) {
+            node.invisibleAnnotations = Collections.emptyList();
+        }
+        try {
+            node.invisibleAnnotations = patch.applyTo(node.invisibleAnnotations);
         } catch (PatchFailedException e) {
             throw new UncheckedPatchFailure(e);
         }

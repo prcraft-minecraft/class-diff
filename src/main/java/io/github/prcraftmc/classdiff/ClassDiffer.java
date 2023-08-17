@@ -65,11 +65,11 @@ public class ClassDiffer {
             );
         }
 
-        if (!Equalizers.listEquals(original.innerClasses, modified.innerClasses, Equalizers.INNER_CLASS_NODE)) {
+        if (!Equalizers.listEquals(original.innerClasses, modified.innerClasses, Equalizers::innerClass)) {
             output.visitInnerClasses(DiffUtils.diff(
                 original.innerClasses != null ? original.innerClasses : Collections.emptyList(),
                 modified.innerClasses != null ? modified.innerClasses : Collections.emptyList(),
-                Equalizers.INNER_CLASS_NODE
+                Equalizers::innerClass
             ));
         }
 
@@ -103,6 +103,22 @@ public class ClassDiffer {
             output.visitPermittedSubclasses(DiffUtils.diff(
                 original.permittedSubclasses != null ? original.permittedSubclasses : Collections.emptyList(),
                 modified.permittedSubclasses != null ? modified.permittedSubclasses : Collections.emptyList()
+            ));
+        }
+
+        if (!Equalizers.listEquals(original.visibleAnnotations, modified.visibleAnnotations, Equalizers::annotation)) {
+            output.visitVisibleAnnotations(DiffUtils.diff(
+                original.visibleAnnotations != null ? original.visibleAnnotations : Collections.emptyList(),
+                modified.visibleAnnotations != null ? modified.visibleAnnotations : Collections.emptyList(),
+                Equalizers::annotation
+            ));
+        }
+
+        if (!Equalizers.listEquals(original.invisibleAnnotations, modified.invisibleAnnotations, Equalizers::annotation)) {
+            output.visitInvisibleAnnotations(DiffUtils.diff(
+                original.invisibleAnnotations != null ? original.invisibleAnnotations : Collections.emptyList(),
+                modified.invisibleAnnotations != null ? modified.invisibleAnnotations : Collections.emptyList(),
+                Equalizers::annotation
             ));
         }
 
