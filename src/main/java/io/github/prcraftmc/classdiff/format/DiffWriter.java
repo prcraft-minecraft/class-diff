@@ -5,6 +5,7 @@ import io.github.prcraftmc.classdiff.ReflectUtils;
 import io.github.prcraftmc.classdiff.util.PatchWriter;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ByteVector;
+import org.objectweb.asm.tree.InnerClassNode;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -12,8 +13,8 @@ import java.util.Map;
 
 public class DiffWriter extends DiffVisitor {
     private final SymbolTable symbolTable = new SymbolTable();
-    private final PatchWriter<String> classPatchWriter = new PatchWriter<>(
-        (vec, value) -> vec.putShort(symbolTable.addConstantClass(value).index)
+    private final PatchWriter<String> classPatchWriter = new PatchWriter<>((vec, value) ->
+        vec.putShort(symbolTable.addConstantClass(value).index)
     );
 
     private int diffVersion;
@@ -26,6 +27,8 @@ public class DiffWriter extends DiffVisitor {
 
     private int source;
     private int debug;
+
+    private ByteVector innerClasses;
 
     private final Map<Integer, byte @Nullable []> attributes = new LinkedHashMap<>();
 
@@ -71,6 +74,18 @@ public class DiffWriter extends DiffVisitor {
     }
 
     @Override
+    public void visitInnerClasses(Patch<InnerClassNode> patch) {
+        super.visitInnerClasses(patch);
+
+        new PatchWriter<InnerClassNode>((vec, value) ->
+            vec.putShort(symbolTable.addConstantClass(value.name).index)
+                .putShort(symbolTable.addConstantClass(value.outerName).index)
+                .putShort(symbolTable.addConstantUtf8(value.innerName))
+                .putShort(value.access)
+        ).write(innerClasses = new ByteVector(), patch);
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         super.visitCustomAttribute(name, patchOrContents);
 
@@ -88,11 +103,15 @@ public class DiffWriter extends DiffVisitor {
             symbolTable.addConstantUtf8("Source");
             attributeCount++;
         }
+        if (innerClasses != null) {
+            symbolTable.addConstantUtf8("InnerClasses");
+            attributeCount++;
+        }
 
         symbolTable.putConstantPool(result);
 
         result.putInt(classVersion);
-        result.putShort(access);
+        result.putInt(access);
         result.putShort(name);
         result.putShort(signature);
         result.putShort(superName);
@@ -107,6 +126,10 @@ public class DiffWriter extends DiffVisitor {
         if (source != 0 || debug != 0) {
             result.putShort(symbolTable.addConstantUtf8("Source")).putInt(4);
             result.putShort(source).putShort(debug);
+        }
+        if (innerClasses != null) {
+            result.putShort(symbolTable.addConstantUtf8("InnerClasses")).putInt(innerClasses.size());
+            result.putByteArray(ReflectUtils.getByteVectorData(innerClasses), 0, innerClasses.size());
         }
         for (final Map.Entry<Integer, byte @Nullable []> entry : attributes.entrySet()) {
             result.putShort(entry.getKey());

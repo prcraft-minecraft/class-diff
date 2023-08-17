@@ -2,6 +2,7 @@ package io.github.prcraftmc.classdiff.format;
 
 import com.github.difflib.patch.Patch;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.tree.InnerClassNode;
 
 public class DiffVisitor {
     @Nullable
@@ -37,6 +38,12 @@ public class DiffVisitor {
     public void visitSource(@Nullable String source, @Nullable String debug) {
         if (delegate != null) {
             delegate.visitSource(source, debug);
+        }
+    }
+
+    public void visitInnerClasses(Patch<InnerClassNode> patch) {
+        if (delegate != null) {
+            delegate.visitInnerClasses(patch);
         }
     }
 

@@ -4,6 +4,7 @@ import com.github.difflib.patch.Patch;
 import io.github.prcraftmc.classdiff.util.ByteReader;
 import io.github.prcraftmc.classdiff.util.PatchReader;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.InnerClassNode;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -90,19 +91,14 @@ public class DiffReader {
     }
 
     public void accept(DiffVisitor visitor, ClassNode context) {
-        int access = readShort(startPos + 4);
-        if (access == 0xffff) {
-            access = -1;
-        }
-
         int readPos;
         final Patch<String> interfacePatch;
         {
-            if (readShort(startPos + 12) == 0) {
+            if (readShort(startPos + 14) == 0) {
                 interfacePatch = null;
-                readPos = startPos + 14;
+                readPos = startPos + 16;
             } else {
-                final ByteReader byteReader = new ByteReader(contents, startPos + 12);
+                final ByteReader byteReader = new ByteReader(contents, startPos + 14);
                 interfacePatch = classPatchReader.readPatch(
                     byteReader, context.interfaces != null ? context.interfaces : Collections.emptyList()
                 );
@@ -111,10 +107,12 @@ public class DiffReader {
         }
 
         visitor.visit(
-            version, readInt(startPos), access,
-            readClass(startPos + 6),
-            readUtf8(startPos + 8),
-            readClass(startPos + 10),
+            version,
+            readInt(startPos),
+            readInt(startPos + 4),
+            readClass(startPos + 8),
+            readUtf8(startPos + 10),
+            readClass(startPos + 12),
             interfacePatch
         );
 
@@ -131,6 +129,18 @@ public class DiffReader {
                 case "Source":
                     visitor.visitSource(readUtf8(readPos), readUtf8(readPos + 2));
                     break;
+                case "InnerClasses":
+                    visitor.visitInnerClasses(new PatchReader<>(reader -> {
+                        reader.readInt();
+                        reader.readShort();
+                        return new InnerClassNode(
+                            readClass(reader.pointer() - 6),
+                            readClass(reader.pointer() - 4),
+                            readUtf8(reader.pointer() - 2),
+                            reader.readShort()
+                        );
+                    }).readPatch(new ByteReader(contents, readPos), context.innerClasses));
+                    break;
                 default:
                     if (attributeName.startsWith("Custom")) {
                         if (contents[readPos] != 0) {
@@ -141,8 +151,6 @@ public class DiffReader {
                         } else {
                             visitor.visitCustomAttribute(attributeName.substring(6), null);
                         }
-                    } else {
-                        throw new IllegalArgumentException("Unknown attribute in diff: " + attributeName);
                     }
                     break;
             }

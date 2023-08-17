@@ -10,6 +10,7 @@ import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.InnerClassNode;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -81,6 +82,20 @@ public class ClassPatcher extends DiffVisitor {
         }
         if (debug != null) {
             node.sourceDebug = debug;
+        }
+    }
+
+    @Override
+    public void visitInnerClasses(Patch<InnerClassNode> patch) {
+        super.visitInnerClasses(patch);
+
+        if (node.innerClasses == null) {
+            node.innerClasses = Collections.emptyList();
+        }
+        try {
+            node.innerClasses = patch.applyTo(node.innerClasses);
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
         }
     }
 

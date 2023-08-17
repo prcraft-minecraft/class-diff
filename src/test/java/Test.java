@@ -19,8 +19,11 @@ public class Test {
         ClassDiffer.diff(helloNode, worldNode, writer);
 
         final byte[] result = writer.toByteArray();
-        System.out.println(new String(result, StandardCharsets.UTF_8));
+        System.out.println(new String(result, StandardCharsets.ISO_8859_1));
 
         ClassPatcher.patch(helloNode, new DiffReader(result));
+    }
+
+    public static class Inner {
     }
 }

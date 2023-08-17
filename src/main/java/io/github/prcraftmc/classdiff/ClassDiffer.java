@@ -5,6 +5,7 @@ import com.github.difflib.patch.Patch;
 import com.nothome.delta.Delta;
 import io.github.prcraftmc.classdiff.format.DiffConstants;
 import io.github.prcraftmc.classdiff.format.DiffVisitor;
+import io.github.prcraftmc.classdiff.util.Equalizers;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
@@ -59,6 +60,14 @@ public class ClassDiffer {
                 Objects.equals(original.sourceFile, modified.sourceFile) ? null : modified.sourceFile,
                 Objects.equals(original.sourceDebug, modified.sourceDebug) ? null : modified.sourceDebug
             );
+        }
+
+        if (!Equalizers.listEquals(original.innerClasses, modified.innerClasses, Equalizers.INNER_CLASS_NODE)) {
+            output.visitInnerClasses(DiffUtils.diff(
+                original.innerClasses != null ? original.innerClasses : Collections.emptyList(),
+                modified.innerClasses != null ? modified.innerClasses : Collections.emptyList(),
+                Equalizers.INNER_CLASS_NODE
+            ));
         }
 
         {
