@@ -63,6 +63,12 @@ public class DiffVisitor {
         }
     }
 
+    public void visitNestMembers(Patch<String> patch) {
+        if (delegate != null) {
+            delegate.visitNestMembers(patch);
+        }
+    }
+
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         if (delegate != null) {
             delegate.visitCustomAttribute(name, patchOrContents);

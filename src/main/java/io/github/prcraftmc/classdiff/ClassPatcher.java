@@ -116,6 +116,18 @@ public class ClassPatcher extends DiffVisitor {
     }
 
     @Override
+    public void visitNestMembers(Patch<String> patch) {
+        if (node.nestMembers == null) {
+            node.nestMembers = Collections.emptyList();
+        }
+        try {
+            node.nestMembers = patch.applyTo(node.nestMembers);
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
+        }
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         if (patchOrContents == null) {
             node.attrs.removeIf(attr -> attr.type.equals(name));

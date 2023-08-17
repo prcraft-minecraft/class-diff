@@ -147,6 +147,10 @@ public class DiffReader {
                 case "NestHost":
                     visitor.visitNestHost(readClass(readPos));
                     break;
+                case "NestMembers":
+                    visitor.visitNestMembers(classPatchReader.readPatch(
+                        new ByteReader(contents, readPos), context.nestMembers
+                    ));
                 default:
                     if (attributeName.startsWith("Custom")) {
                         if (contents[readPos] != 0) {

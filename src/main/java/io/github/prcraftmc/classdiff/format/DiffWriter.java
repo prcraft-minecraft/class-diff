@@ -36,6 +36,8 @@ public class DiffWriter extends DiffVisitor {
 
     private int nestHost;
 
+    private ByteVector nestMembers;
+
     private final Map<Integer, byte @Nullable []> attributes = new LinkedHashMap<>();
 
     public DiffWriter() {
@@ -112,6 +114,13 @@ public class DiffWriter extends DiffVisitor {
     }
 
     @Override
+    public void visitNestMembers(Patch<String> patch) {
+        super.visitNestMembers(patch);
+
+        classPatchWriter.write(nestMembers = new ByteVector(), patch);
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         super.visitCustomAttribute(name, patchOrContents);
 
@@ -139,6 +148,10 @@ public class DiffWriter extends DiffVisitor {
         }
         if (nestHost != 0) {
             symbolTable.addConstantUtf8("NestHost");
+            attributeCount++;
+        }
+        if (nestMembers != null) {
+            symbolTable.addConstantUtf8("NestMembers");
             attributeCount++;
         }
 
@@ -172,6 +185,10 @@ public class DiffWriter extends DiffVisitor {
         if (nestHost != 0) {
             result.putShort(symbolTable.addConstantUtf8("NestHost")).putInt(2);
             result.putShort(nestHost);
+        }
+        if (nestMembers != null) {
+            result.putShort(symbolTable.addConstantUtf8("NestMembers")).putInt(nestMembers.size());
+            result.putByteArray(ReflectUtils.getByteVectorData(nestMembers), 0, nestMembers.size());
         }
         for (final Map.Entry<Integer, byte @Nullable []> entry : attributes.entrySet()) {
             result.putShort(entry.getKey());

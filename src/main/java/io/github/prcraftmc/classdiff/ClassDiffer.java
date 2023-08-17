@@ -92,6 +92,13 @@ public class ClassDiffer {
             output.visitNestHost(modified.nestHostClass);
         }
 
+        if (!Objects.equals(original.nestMembers, modified.nestMembers)) {
+            output.visitNestMembers(DiffUtils.diff(
+                original.nestMembers != null ? original.nestMembers : Collections.emptyList(),
+                modified.nestMembers != null ? modified.nestMembers : Collections.emptyList()
+            ));
+        }
+
         {
             final Map<String, Attribute> bAttributes = new LinkedHashMap<>();
             if (modified.attrs != null) {
