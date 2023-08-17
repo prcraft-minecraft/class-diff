@@ -139,7 +139,10 @@ public class DiffReader {
                             readUtf8(reader.pointer() - 2),
                             reader.readShort()
                         );
-                    }).readPatch(new ByteReader(contents, readPos), context.innerClasses));
+                    }).readPatch(
+                        new ByteReader(contents, readPos),
+                        context.innerClasses != null ? context.innerClasses : Collections.emptyList()
+                    ));
                     break;
                 case "OuterClasses":
                     visitor.visitOuterClass(readClass(readPos), readClass(readPos + 2), readClass(readPos + 4));
@@ -149,8 +152,16 @@ public class DiffReader {
                     break;
                 case "NestMembers":
                     visitor.visitNestMembers(classPatchReader.readPatch(
-                        new ByteReader(contents, readPos), context.nestMembers
+                        new ByteReader(contents, readPos),
+                        context.nestMembers != null ? context.nestMembers : Collections.emptyList()
                     ));
+                    break;
+                case "PermittedSubclasses":
+                    visitor.visitPermittedSubclasses(classPatchReader.readPatch(
+                        new ByteReader(contents, readPos),
+                        context.permittedSubclasses != null ? context.permittedSubclasses : Collections.emptyList()
+                    ));
+                    break;
                 default:
                     if (attributeName.startsWith("Custom")) {
                         if (contents[readPos] != 0) {

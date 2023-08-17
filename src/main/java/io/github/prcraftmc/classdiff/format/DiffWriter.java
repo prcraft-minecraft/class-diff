@@ -38,6 +38,8 @@ public class DiffWriter extends DiffVisitor {
 
     private ByteVector nestMembers;
 
+    private ByteVector permittedSubclasses;
+
     private final Map<Integer, byte @Nullable []> attributes = new LinkedHashMap<>();
 
     public DiffWriter() {
@@ -121,6 +123,13 @@ public class DiffWriter extends DiffVisitor {
     }
 
     @Override
+    public void visitPermittedSubclasses(Patch<String> patch) {
+        super.visitPermittedSubclasses(patch);
+
+        classPatchWriter.write(permittedSubclasses = new ByteVector(), patch);
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         super.visitCustomAttribute(name, patchOrContents);
 
@@ -152,6 +161,10 @@ public class DiffWriter extends DiffVisitor {
         }
         if (nestMembers != null) {
             symbolTable.addConstantUtf8("NestMembers");
+            attributeCount++;
+        }
+        if (permittedSubclasses != null) {
+            symbolTable.addConstantUtf8("PermittedSubclasses");
             attributeCount++;
         }
 
@@ -189,6 +202,10 @@ public class DiffWriter extends DiffVisitor {
         if (nestMembers != null) {
             result.putShort(symbolTable.addConstantUtf8("NestMembers")).putInt(nestMembers.size());
             result.putByteArray(ReflectUtils.getByteVectorData(nestMembers), 0, nestMembers.size());
+        }
+        if (permittedSubclasses != null) {
+            result.putShort(symbolTable.addConstantUtf8("PermittedSubclasses")).putInt(permittedSubclasses.size());
+            result.putByteArray(ReflectUtils.getByteVectorData(permittedSubclasses), 0, permittedSubclasses.size());
         }
         for (final Map.Entry<Integer, byte @Nullable []> entry : attributes.entrySet()) {
             result.putShort(entry.getKey());

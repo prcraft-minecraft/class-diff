@@ -128,6 +128,18 @@ public class ClassPatcher extends DiffVisitor {
     }
 
     @Override
+    public void visitPermittedSubclasses(Patch<String> patch) {
+        if (node.permittedSubclasses == null) {
+            node.permittedSubclasses = Collections.emptyList();
+        }
+        try {
+            node.permittedSubclasses = patch.applyTo(node.permittedSubclasses);
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
+        }
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         if (patchOrContents == null) {
             node.attrs.removeIf(attr -> attr.type.equals(name));

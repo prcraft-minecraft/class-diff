@@ -99,6 +99,13 @@ public class ClassDiffer {
             ));
         }
 
+        if (!Objects.equals(original.permittedSubclasses, modified.permittedSubclasses)) {
+            output.visitPermittedSubclasses(DiffUtils.diff(
+                original.permittedSubclasses != null ? original.permittedSubclasses : Collections.emptyList(),
+                modified.permittedSubclasses != null ? modified.permittedSubclasses : Collections.emptyList()
+            ));
+        }
+
         {
             final Map<String, Attribute> bAttributes = new LinkedHashMap<>();
             if (modified.attrs != null) {

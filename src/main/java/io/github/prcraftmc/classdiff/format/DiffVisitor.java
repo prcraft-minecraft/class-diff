@@ -69,6 +69,12 @@ public class DiffVisitor {
         }
     }
 
+    public void visitPermittedSubclasses(Patch<String> patch) {
+        if (delegate != null) {
+            delegate.visitPermittedSubclasses(patch);
+        }
+    }
+
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         if (delegate != null) {
             delegate.visitCustomAttribute(name, patchOrContents);
