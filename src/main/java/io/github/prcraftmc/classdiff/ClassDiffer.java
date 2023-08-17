@@ -55,7 +55,10 @@ public class ClassDiffer {
             interfacePatch
         );
 
-        if (!Objects.equals(original.sourceFile, modified.sourceFile) || !Objects.equals(original.sourceDebug, modified.sourceDebug)) {
+        if (
+            !Objects.equals(original.sourceFile, modified.sourceFile) ||
+                !Objects.equals(original.sourceDebug, modified.sourceDebug)
+        ) {
             output.visitSource(
                 Objects.equals(original.sourceFile, modified.sourceFile) ? null : modified.sourceFile,
                 Objects.equals(original.sourceDebug, modified.sourceDebug) ? null : modified.sourceDebug
@@ -68,6 +71,21 @@ public class ClassDiffer {
                 modified.innerClasses != null ? modified.innerClasses : Collections.emptyList(),
                 Equalizers.INNER_CLASS_NODE
             ));
+        }
+
+        if (
+            !Objects.equals(original.outerClass, modified.outerClass) ||
+                !Objects.equals(original.outerMethod, modified.outerMethod) ||
+                !Objects.equals(original.outerMethodDesc, modified.outerMethodDesc)
+        ) {
+            output.visitOuterClass(
+                Objects.equals(original.outerClass, modified.outerClass)
+                    ? null : modified.outerClass,
+                Objects.equals(original.outerMethod, modified.outerMethod)
+                    ? null : (modified.outerMethod == null ? "" : modified.outerMethod),
+                Objects.equals(original.outerMethodDesc, modified.outerMethodDesc)
+                    ? null : (modified.outerMethodDesc == null ? "" : modified.outerMethodDesc)
+            );
         }
 
         {

@@ -47,6 +47,16 @@ public class DiffVisitor {
         }
     }
 
+    public void visitOuterClass(
+        @Nullable String className,
+        @Nullable String methodName,
+        @Nullable String methodDescriptor
+    ) {
+        if (delegate != null) {
+            delegate.visitOuterClass(className, methodName, methodDescriptor);
+        }
+    }
+
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         if (delegate != null) {
             delegate.visitCustomAttribute(name, patchOrContents);

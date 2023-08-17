@@ -30,6 +30,10 @@ public class DiffWriter extends DiffVisitor {
 
     private ByteVector innerClasses;
 
+    private int outerClass;
+    private int outerMethod;
+    private int outerMethodDesc;
+
     private final Map<Integer, byte @Nullable []> attributes = new LinkedHashMap<>();
 
     public DiffWriter() {
@@ -86,6 +90,19 @@ public class DiffWriter extends DiffVisitor {
     }
 
     @Override
+    public void visitOuterClass(
+        @Nullable String className,
+        @Nullable String methodName,
+        @Nullable String methodDescriptor
+    ) {
+        super.visitOuterClass(className, methodName, methodDescriptor);
+
+        outerClass = className != null ? symbolTable.addConstantClass(className).index : 0;
+        outerMethod = methodName != null ? symbolTable.addConstantUtf8(methodName) : 0;
+        outerMethodDesc = methodDescriptor != null ? symbolTable.addConstantUtf8(methodDescriptor) : 0;
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         super.visitCustomAttribute(name, patchOrContents);
 
@@ -105,6 +122,10 @@ public class DiffWriter extends DiffVisitor {
         }
         if (innerClasses != null) {
             symbolTable.addConstantUtf8("InnerClasses");
+            attributeCount++;
+        }
+        if (outerClass != 0 || outerMethod != 0 || outerMethodDesc != 0) {
+            symbolTable.addConstantUtf8("OuterClass");
             attributeCount++;
         }
 
@@ -130,6 +151,10 @@ public class DiffWriter extends DiffVisitor {
         if (innerClasses != null) {
             result.putShort(symbolTable.addConstantUtf8("InnerClasses")).putInt(innerClasses.size());
             result.putByteArray(ReflectUtils.getByteVectorData(innerClasses), 0, innerClasses.size());
+        }
+        if (outerClass != 0 || outerMethod != 0 || outerMethodDesc != 0) {
+            result.putShort(symbolTable.addConstantUtf8("OuterClass")).putInt(6);
+            result.putShort(outerClass).putShort(outerMethod).putShort(outerMethodDesc);
         }
         for (final Map.Entry<Integer, byte @Nullable []> entry : attributes.entrySet()) {
             result.putShort(entry.getKey());

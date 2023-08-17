@@ -141,6 +141,9 @@ public class DiffReader {
                         );
                     }).readPatch(new ByteReader(contents, readPos), context.innerClasses));
                     break;
+                case "OuterClasses":
+                    visitor.visitOuterClass(readClass(readPos), readClass(readPos + 2), readClass(readPos + 4));
+                    break;
                 default:
                     if (attributeName.startsWith("Custom")) {
                         if (contents[readPos] != 0) {

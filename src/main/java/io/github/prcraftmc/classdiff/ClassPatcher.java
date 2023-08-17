@@ -87,8 +87,6 @@ public class ClassPatcher extends DiffVisitor {
 
     @Override
     public void visitInnerClasses(Patch<InnerClassNode> patch) {
-        super.visitInnerClasses(patch);
-
         if (node.innerClasses == null) {
             node.innerClasses = Collections.emptyList();
         }
@@ -96,6 +94,19 @@ public class ClassPatcher extends DiffVisitor {
             node.innerClasses = patch.applyTo(node.innerClasses);
         } catch (PatchFailedException e) {
             throw new UncheckedPatchFailure(e);
+        }
+    }
+
+    @Override
+    public void visitOuterClass(@Nullable String className, @Nullable String methodName, @Nullable String methodDescriptor) {
+        if (className != null) {
+            node.outerClass = className;
+        }
+        if (methodName != null) {
+            node.outerMethod = !methodName.isEmpty() ? methodName : null;
+        }
+        if (methodDescriptor != null) {
+            node.outerMethodDesc = !methodDescriptor.isEmpty() ? methodDescriptor : null;
         }
     }
 
