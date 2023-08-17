@@ -107,19 +107,19 @@ public class ClassDiffer {
         }
 
         if (!Equalizers.listEquals(original.visibleAnnotations, modified.visibleAnnotations, Equalizers::annotation)) {
-            output.visitVisibleAnnotations(DiffUtils.diff(
+            output.visitAnnotations(DiffUtils.diff(
                 original.visibleAnnotations != null ? original.visibleAnnotations : Collections.emptyList(),
                 modified.visibleAnnotations != null ? modified.visibleAnnotations : Collections.emptyList(),
                 Equalizers::annotation
-            ));
+            ), true);
         }
 
         if (!Equalizers.listEquals(original.invisibleAnnotations, modified.invisibleAnnotations, Equalizers::annotation)) {
-            output.visitInvisibleAnnotations(DiffUtils.diff(
+            output.visitAnnotations(DiffUtils.diff(
                 original.invisibleAnnotations != null ? original.invisibleAnnotations : Collections.emptyList(),
                 modified.invisibleAnnotations != null ? modified.invisibleAnnotations : Collections.emptyList(),
                 Equalizers::annotation
-            ));
+            ), false);
         }
 
         {

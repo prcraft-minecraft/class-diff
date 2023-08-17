@@ -193,16 +193,16 @@ public class DiffReader {
                     ));
                     break;
                 case "VisibleAnnotations":
-                    visitor.visitVisibleAnnotations(annotationPatchReader.readPatch(
+                    visitor.visitAnnotations(annotationPatchReader.readPatch(
                         new ByteReader(contents, readPos),
                         context.visibleAnnotations != null ? context.visibleAnnotations : Collections.emptyList()
-                    ));
+                    ), true);
                     break;
                 case "InvisibleAnnotations":
-                    visitor.visitInvisibleAnnotations(annotationPatchReader.readPatch(
+                    visitor.visitAnnotations(annotationPatchReader.readPatch(
                         new ByteReader(contents, readPos),
                         context.invisibleAnnotations != null ? context.invisibleAnnotations : Collections.emptyList()
-                    ));
+                    ), false);
                     break;
                 default:
                     if (attributeName.startsWith("Custom")) {

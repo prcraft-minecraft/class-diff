@@ -46,7 +46,6 @@ public class DiffWriter extends DiffVisitor {
     private ByteVector permittedSubclasses;
 
     private ByteVector visibleAnnotations;
-
     private ByteVector invisibleAnnotations;
 
     private final Map<Integer, byte @Nullable []> attributes = new LinkedHashMap<>();
@@ -139,17 +138,16 @@ public class DiffWriter extends DiffVisitor {
     }
 
     @Override
-    public void visitVisibleAnnotations(Patch<AnnotationNode> patch) {
-        super.visitVisibleAnnotations(patch);
+    public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
+        super.visitAnnotations(patch, visible);
 
-        annotationPatchWriter.write(visibleAnnotations = new ByteVector(), patch);
-    }
-
-    @Override
-    public void visitInvisibleAnnotations(Patch<AnnotationNode> patch) {
-        super.visitInvisibleAnnotations(patch);
-
-        annotationPatchWriter.write(invisibleAnnotations = new ByteVector(), patch);
+        final ByteVector vector = new ByteVector();
+        if (visible) {
+            visibleAnnotations = vector;
+        } else {
+            invisibleAnnotations = vector;
+        }
+        annotationPatchWriter.write(vector, patch);
     }
 
     @Override

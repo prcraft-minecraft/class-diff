@@ -76,15 +76,9 @@ public class DiffVisitor {
         }
     }
 
-    public void visitVisibleAnnotations(Patch<AnnotationNode> patch) {
+    public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
         if (delegate != null) {
-            delegate.visitVisibleAnnotations(patch);
-        }
-    }
-
-    public void visitInvisibleAnnotations(Patch<AnnotationNode> patch) {
-        if (delegate != null) {
-            delegate.visitInvisibleAnnotations(patch);
+            delegate.visitAnnotations(patch, visible);
         }
     }
 
