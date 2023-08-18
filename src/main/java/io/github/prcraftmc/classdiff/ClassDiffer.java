@@ -3,13 +3,16 @@ package io.github.prcraftmc.classdiff;
 import com.github.difflib.DiffUtils;
 import com.github.difflib.patch.Patch;
 import com.nothome.delta.Delta;
-import io.github.prcraftmc.classdiff.format.DiffConstants;
-import io.github.prcraftmc.classdiff.format.DiffVisitor;
+import io.github.prcraftmc.classdiff.format.*;
 import io.github.prcraftmc.classdiff.util.Equalizers;
+import io.github.prcraftmc.classdiff.util.MemberName;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.RecordComponentNode;
+import org.objectweb.asm.tree.TypeAnnotationNode;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -107,65 +110,164 @@ public class ClassDiffer {
             ));
         }
 
-        if (!Equalizers.listEquals(original.visibleAnnotations, modified.visibleAnnotations, Equalizers::annotation)) {
-            output.visitAnnotations(DiffUtils.diff(
-                original.visibleAnnotations != null ? original.visibleAnnotations : Collections.emptyList(),
-                modified.visibleAnnotations != null ? modified.visibleAnnotations : Collections.emptyList(),
-                Equalizers::annotation
-            ), true);
-        }
-
-        if (!Equalizers.listEquals(original.invisibleAnnotations, modified.invisibleAnnotations, Equalizers::annotation)) {
-            output.visitAnnotations(DiffUtils.diff(
-                original.invisibleAnnotations != null ? original.invisibleAnnotations : Collections.emptyList(),
-                modified.invisibleAnnotations != null ? modified.invisibleAnnotations : Collections.emptyList(),
-                Equalizers::annotation
-            ), false);
-        }
-
-        if (!Equalizers.listEquals(original.visibleTypeAnnotations, modified.visibleTypeAnnotations, Equalizers::typeAnnotation)) {
-            output.visitTypeAnnotations(DiffUtils.diff(
-                original.visibleTypeAnnotations != null ? original.visibleTypeAnnotations : Collections.emptyList(),
-                modified.visibleTypeAnnotations != null ? modified.visibleTypeAnnotations : Collections.emptyList(),
-                Equalizers::typeAnnotation
-            ), true);
-        }
-
-        if (!Equalizers.listEquals(original.invisibleTypeAnnotations, modified.invisibleTypeAnnotations, Equalizers::typeAnnotation)) {
-            output.visitTypeAnnotations(DiffUtils.diff(
-                original.invisibleTypeAnnotations != null ? original.invisibleTypeAnnotations : Collections.emptyList(),
-                modified.invisibleTypeAnnotations != null ? modified.invisibleTypeAnnotations : Collections.emptyList(),
-                Equalizers::typeAnnotation
-            ), false);
-        }
+        diffAnnotated(
+            output,
+            original.visibleAnnotations, modified.visibleAnnotations,
+            original.invisibleAnnotations, modified.invisibleAnnotations,
+            original.visibleTypeAnnotations, modified.visibleTypeAnnotations,
+            original.invisibleTypeAnnotations, modified.invisibleTypeAnnotations
+        );
 
         {
-            final Map<String, Attribute> bAttributes = new LinkedHashMap<>();
-            if (modified.attrs != null) {
-                for (final Attribute attr : modified.attrs) {
-                    bAttributes.put(attr.type, attr);
-                }
+            final List<MemberName> aComponents = MemberName.fromRecordComponents(original.recordComponents);
+            final List<MemberName> bComponents = MemberName.fromRecordComponents(modified.recordComponents);
+            if (!aComponents.equals(bComponents)) {
+                output.visitRecordComponents(DiffUtils.diff(aComponents, bComponents));
             }
-            if (original.attrs != null) {
-                for (final Attribute attr : original.attrs) {
-                    if (!bAttributes.containsKey(attr.type)) {
-                        output.visitCustomAttribute(attr.type, null);
-                        continue;
-                    }
-                    final byte[] aContents = ReflectUtils.getAttributeContent(attr);
-                    final byte[] bContents = ReflectUtils.getAttributeContent(bAttributes.remove(attr.type));
-                    if (!Arrays.equals(aContents, bContents)) {
-                        try {
-                            output.visitCustomAttribute(attr.type, delta.compute(aContents, bContents));
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
+            if (!bComponents.isEmpty()) {
+                final Map<MemberName, RecordComponentNode> bMap = new LinkedHashMap<>();
+                for (int i = 0; i < bComponents.size(); i++) {
+                    bMap.put(bComponents.get(i), modified.recordComponents.get(i));
+                }
+
+                final Set<MemberName> extra = new LinkedHashSet<>(bMap.keySet());
+                for (int i = 0; i < aComponents.size(); i++) {
+                    final MemberName name = aComponents.get(i);
+                    if (extra.remove(name)) {
+                        final RecordComponentNode bNode = bMap.get(name);
+                        final RecordComponentDiffVisitor visitor = output.visitRecordComponent(
+                            name.name, name.descriptor, bNode.signature
+                        );
+                        if (visitor != null) {
+                            diffRecordComponents(original.recordComponents.get(i), bNode, visitor);
                         }
                     }
                 }
+
+                for (final MemberName name : extra) {
+                    final RecordComponentNode node = bMap.get(name);
+                    final RecordComponentDiffVisitor visitor = output.visitRecordComponent(
+                        name.name, name.descriptor, node.signature
+                    );
+                    if (visitor != null) {
+                        if (node.visibleAnnotations != null) {
+                            visitor.visitAnnotations(DiffUtils.diff(
+                                Collections.emptyList(), node.visibleAnnotations, Equalizers::annotation
+                            ), true);
+                        }
+                        if (node.invisibleAnnotations != null) {
+                            visitor.visitAnnotations(DiffUtils.diff(
+                                Collections.emptyList(), node.invisibleAnnotations, Equalizers::annotation
+                            ), false);
+                        }
+                        if (node.visibleTypeAnnotations != null) {
+                            visitor.visitTypeAnnotations(DiffUtils.diff(
+                                Collections.emptyList(), node.visibleTypeAnnotations, Equalizers::typeAnnotation
+                            ), true);
+                        }
+                        if (node.invisibleTypeAnnotations != null) {
+                            visitor.visitTypeAnnotations(DiffUtils.diff(
+                                Collections.emptyList(), node.invisibleTypeAnnotations, Equalizers::typeAnnotation
+                            ), false);
+                        }
+                        visitor.visitEnd();
+                    }
+                }
             }
-            for (final Attribute attr : bAttributes.values()) {
-                output.visitCustomAttribute(attr.type, ReflectUtils.getAttributeContent(attr));
+        }
+
+        diffAttributable(output, original.attrs, modified.attrs);
+
+        output.visitEnd();
+    }
+
+    private void diffRecordComponents(
+        RecordComponentNode original,
+        RecordComponentNode modified,
+        RecordComponentDiffVisitor output
+    ) {
+        diffAnnotated(
+            output,
+            original.visibleAnnotations, modified.visibleAnnotations,
+            original.invisibleAnnotations, modified.invisibleAnnotations,
+            original.visibleTypeAnnotations, modified.visibleTypeAnnotations,
+            original.invisibleTypeAnnotations, modified.invisibleTypeAnnotations
+        );
+
+        diffAttributable(output, original.attrs, modified.attrs);
+
+        output.visitEnd();
+    }
+
+    private void diffAnnotated(
+        AnnotatedElementVisitor output,
+        List<AnnotationNode> originalVisibleAnnotations, List<AnnotationNode> modifiedVisibleAnnotations,
+        List<AnnotationNode> originalInvisibleAnnotations, List<AnnotationNode> modifiedInvisibleAnnotations,
+        List<TypeAnnotationNode> originalVisibleTypeAnnotations, List<TypeAnnotationNode> modifiedVisibleTypeAnnotations,
+        List<TypeAnnotationNode> originalInvisibleTypeAnnotations, List<TypeAnnotationNode> modifiedInvisibleTypeAnnotations
+    ) {
+        if (!Equalizers.listEquals(originalVisibleAnnotations, modifiedVisibleAnnotations, Equalizers::annotation)) {
+            output.visitAnnotations(DiffUtils.diff(
+                originalVisibleAnnotations != null ? originalVisibleAnnotations : Collections.emptyList(),
+                modifiedVisibleAnnotations != null ? modifiedVisibleAnnotations : Collections.emptyList(),
+                Equalizers::annotation
+            ), true);
+        }
+
+        if (!Equalizers.listEquals(originalInvisibleAnnotations, modifiedInvisibleAnnotations, Equalizers::annotation)) {
+            output.visitAnnotations(DiffUtils.diff(
+                originalInvisibleAnnotations != null ? originalInvisibleAnnotations : Collections.emptyList(),
+                modifiedInvisibleAnnotations != null ? modifiedInvisibleAnnotations : Collections.emptyList(),
+                Equalizers::annotation
+            ), false);
+        }
+
+        if (!Equalizers.listEquals(originalVisibleTypeAnnotations, modifiedVisibleTypeAnnotations, Equalizers::typeAnnotation)) {
+            output.visitTypeAnnotations(DiffUtils.diff(
+                originalVisibleTypeAnnotations != null ? originalVisibleTypeAnnotations : Collections.emptyList(),
+                modifiedVisibleTypeAnnotations != null ? modifiedVisibleTypeAnnotations : Collections.emptyList(),
+                Equalizers::typeAnnotation
+            ), true);
+        }
+
+        if (!Equalizers.listEquals(originalInvisibleTypeAnnotations, modifiedInvisibleTypeAnnotations, Equalizers::typeAnnotation)) {
+            output.visitTypeAnnotations(DiffUtils.diff(
+                originalInvisibleTypeAnnotations != null ? originalInvisibleTypeAnnotations : Collections.emptyList(),
+                modifiedInvisibleTypeAnnotations != null ? modifiedInvisibleTypeAnnotations : Collections.emptyList(),
+                Equalizers::typeAnnotation
+            ), false);
+        }
+    }
+
+    private void diffAttributable(
+        CustomAttributableVisitor output,
+        List<Attribute> originalAttrs, List<Attribute> modifiedAttrs
+    ) {
+        final Map<String, Attribute> bAttributes = new LinkedHashMap<>();
+        if (modifiedAttrs != null) {
+            for (final Attribute attr : modifiedAttrs) {
+                bAttributes.put(attr.type, attr);
             }
+        }
+        if (originalAttrs != null) {
+            for (final Attribute attr : originalAttrs) {
+                if (!bAttributes.containsKey(attr.type)) {
+                    output.visitCustomAttribute(attr.type, null);
+                    continue;
+                }
+                final byte[] aContents = ReflectUtils.getAttributeContent(attr);
+                final byte[] bContents = ReflectUtils.getAttributeContent(bAttributes.remove(attr.type));
+                if (!Arrays.equals(aContents, bContents)) {
+                    try {
+                        output.visitCustomAttribute(attr.type, delta.compute(aContents, bContents));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            }
+        }
+        for (final Attribute attr : bAttributes.values()) {
+            output.visitCustomAttribute(attr.type, ReflectUtils.getAttributeContent(attr));
         }
     }
 }

@@ -1,12 +1,13 @@
 package io.github.prcraftmc.classdiff.format;
 
 import com.github.difflib.patch.Patch;
+import io.github.prcraftmc.classdiff.util.MemberName;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.InnerClassNode;
 import org.objectweb.asm.tree.TypeAnnotationNode;
 
-public class DiffVisitor {
+public class DiffVisitor implements AnnotatedElementVisitor, CustomAttributableVisitor {
     @Nullable
     private final DiffVisitor delegate;
 
@@ -77,21 +78,48 @@ public class DiffVisitor {
         }
     }
 
+    @Override
     public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
         if (delegate != null) {
             delegate.visitAnnotations(patch, visible);
         }
     }
 
+    @Override
     public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
         if (delegate != null) {
             delegate.visitTypeAnnotations(patch, visible);
         }
     }
 
+    public void visitRecordComponents(Patch<MemberName> patch) {
+        if (delegate != null) {
+            delegate.visitRecordComponents(patch);
+        }
+    }
+
+    @Nullable
+    public RecordComponentDiffVisitor visitRecordComponent(
+        String name,
+        String descriptor,
+        @Nullable String signature
+    ) {
+        if (delegate != null) {
+            return delegate.visitRecordComponent(name, descriptor, signature);
+        }
+        return null;
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         if (delegate != null) {
             delegate.visitCustomAttribute(name, patchOrContents);
+        }
+    }
+
+    public void visitEnd() {
+        if (delegate != null) {
+            delegate.visitEnd();
         }
     }
 }

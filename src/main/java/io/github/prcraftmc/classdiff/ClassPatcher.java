@@ -5,19 +5,18 @@ import com.github.difflib.patch.PatchFailedException;
 import com.nothome.delta.GDiffPatcher;
 import io.github.prcraftmc.classdiff.format.DiffReader;
 import io.github.prcraftmc.classdiff.format.DiffVisitor;
+import io.github.prcraftmc.classdiff.format.RecordComponentDiffVisitor;
+import io.github.prcraftmc.classdiff.util.MemberName;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.InnerClassNode;
-import org.objectweb.asm.tree.TypeAnnotationNode;
+import org.objectweb.asm.tree.*;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
+import java.util.*;
 
 public class ClassPatcher extends DiffVisitor {
     private final GDiffPatcher bytePatcher = new GDiffPatcher();
@@ -178,6 +177,92 @@ public class ClassPatcher extends DiffVisitor {
         } catch (PatchFailedException e) {
             throw new UncheckedPatchFailure(e);
         }
+    }
+
+    @Override
+    public void visitRecordComponents(Patch<MemberName> patch) {
+        final List<MemberName> originalList = MemberName.fromRecordComponents(node.recordComponents);
+        final List<MemberName> modifiedList;
+        try {
+            modifiedList = patch.applyTo(originalList);
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
+        }
+
+        final Map<MemberName, RecordComponentNode> originalMap = new HashMap<>();
+        for (int i = 0; i < originalList.size(); i++) {
+            originalMap.put(originalList.get(i), node.recordComponents.get(i));
+        }
+
+        node.recordComponents = new ArrayList<>();
+        for (final MemberName name : modifiedList) {
+            RecordComponentNode recordNode = originalMap.get(name);
+            if (recordNode == null) {
+                recordNode = new RecordComponentNode(name.name, name.descriptor, null);
+            }
+            node.recordComponents.add(recordNode);
+        }
+    }
+
+    @Nullable
+    @Override
+    public RecordComponentDiffVisitor visitRecordComponent(String name, String descriptor, @Nullable String signature) {
+        if (node.recordComponents == null) {
+            return null;
+        }
+
+        RecordComponentNode recordNode = null;
+        for (final RecordComponentNode test : node.recordComponents) {
+            if (test.name.equals(name) && test.descriptor.equals(descriptor)) {
+                recordNode = test;
+                break;
+            }
+        }
+        if (recordNode == null) {
+            return null;
+        }
+
+        recordNode.signature = signature;
+        final RecordComponentNode fRecordNode = recordNode;
+        return new RecordComponentDiffVisitor() {
+            @Override
+            public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
+                try {
+                    if (visible) {
+                        if (fRecordNode.visibleAnnotations == null) {
+                            fRecordNode.visibleAnnotations = Collections.emptyList();
+                        }
+                        fRecordNode.visibleAnnotations = patch.applyTo(fRecordNode.visibleAnnotations);
+                    } else {
+                        if (fRecordNode.invisibleAnnotations == null) {
+                            fRecordNode.invisibleAnnotations = Collections.emptyList();
+                        }
+                        fRecordNode.invisibleAnnotations = patch.applyTo(fRecordNode.invisibleAnnotations);
+                    }
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
+                try {
+                    if (visible) {
+                        if (fRecordNode.visibleTypeAnnotations == null) {
+                            fRecordNode.visibleTypeAnnotations = Collections.emptyList();
+                        }
+                        fRecordNode.visibleTypeAnnotations = patch.applyTo(fRecordNode.visibleTypeAnnotations);
+                    } else {
+                        if (fRecordNode.invisibleTypeAnnotations == null) {
+                            fRecordNode.invisibleTypeAnnotations = Collections.emptyList();
+                        }
+                        fRecordNode.invisibleTypeAnnotations = patch.applyTo(fRecordNode.invisibleTypeAnnotations);
+                    }
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+        };
     }
 
     @Override

@@ -1,3 +1,5 @@
+package test1;
+
 @Test.Inner
 public class World implements Runnable, Comparable<@Test.Inner Object> {
     public static void main(String[] args) {

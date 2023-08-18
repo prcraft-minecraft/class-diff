@@ -6,6 +6,9 @@ plugins {
 group = "io.github.prcraftmc"
 version = "1.0-SNAPSHOT"
 
+java.sourceCompatibility = JavaVersion.VERSION_17
+java.targetCompatibility = JavaVersion.VERSION_17
+
 repositories {
     mavenCentral()
 }
@@ -23,6 +26,22 @@ dependencies {
 
     testImplementation(platform("org.junit:junit-bom:5.9.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+}
+
+tasks.compileJava {
+    sourceCompatibility = "1.8"
+    targetCompatibility = "1.8"
+    if (JavaVersion.current().isJava9Compatible) {
+        options.release.set(8)
+    }
+}
+
+tasks.compileTestJava {
+    sourceCompatibility = "17"
+    targetCompatibility = "17"
+    if (JavaVersion.current().isJava9Compatible) {
+        options.release.set(17)
+    }
 }
 
 tasks.test {

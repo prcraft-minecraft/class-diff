@@ -3,13 +3,11 @@ package io.github.prcraftmc.classdiff.format;
 import com.github.difflib.patch.DeltaType;
 import com.github.difflib.patch.Patch;
 import io.github.prcraftmc.classdiff.util.ByteReader;
+import io.github.prcraftmc.classdiff.util.MemberName;
 import io.github.prcraftmc.classdiff.util.PatchReader;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.objectweb.asm.*;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.InnerClassNode;
-import org.objectweb.asm.tree.TypeAnnotationNode;
+import org.objectweb.asm.tree.*;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,10 +28,14 @@ public class DiffReader {
         final TypeAnnotationNode result = new TypeAnnotationNode(
             context.currentTypeAnnotationTarget,
             context.currentTypeAnnotationTargetPath,
-            readClass(reader.pointer())
+            readUtf8(reader.pointer())
         );
         reader.pointer(readElementValues(result, reader.pointer() + 2, true));
         return result;
+    });
+    private final PatchReader<MemberName> memberNamePatchReader = new PatchReader<>(reader -> {
+        reader.skip(4);
+        return new MemberName(readUtf8(reader.pointer() - 4), readUtf8(reader.pointer() - 2));
     });
 
     private final byte[] contents;
@@ -230,6 +232,17 @@ public class DiffReader {
                         node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
                     ), false);
                     break;
+                case "RecordComponents": {
+                    final ByteReader reader = new ByteReader(contents, readPos);
+                    visitor.visitRecordComponents(memberNamePatchReader.readPatch(
+                        reader, node.recordComponents != null
+                            ? MemberName.fromRecordComponents(node.recordComponents) : Collections.emptyList()
+                    ));
+                    for (int j = 0, l = reader.readShort(); j < l; j++) {
+                        reader.pointer(readRecordComponent(reader.pointer(), visitor, node));
+                    }
+                    break;
+                }
                 default:
                     if (attributeName.startsWith("Custom")) {
                         if (contents[readPos] != 0) {
@@ -247,6 +260,84 @@ public class DiffReader {
         }
 
         context.remove();
+        visitor.visitEnd();
+    }
+
+    private int readRecordComponent(int currentOffset, DiffVisitor diffVisitor, ClassNode classNode) {
+        final String name = readUtf8(currentOffset);
+        final String descriptor = readUtf8(currentOffset + 2);
+        final String signature = readUtf8(currentOffset + 4);
+
+        final RecordComponentDiffVisitor visitor = diffVisitor.visitRecordComponent(name, descriptor, signature);
+
+        RecordComponentNode node = null;
+        if (visitor != null && classNode.recordComponents != null) {
+            for (final RecordComponentNode test : classNode.recordComponents) {
+                if (test.name.equals(name) && test.descriptor.equals(descriptor)) {
+                    node = test;
+                    break;
+                }
+            }
+        }
+        if (node == null) {
+            node = new RecordComponentNode(name, descriptor, signature);
+        }
+
+        final int attributeCount = readShort(currentOffset + 6);
+
+        currentOffset += 8;
+        for (int i = 0; i < attributeCount; i++) {
+            final int attrLength = readInt(currentOffset + 2);
+            currentOffset += 6;
+            if (visitor != null) {
+                final String attrName = readUtf8(currentOffset - 6);
+                switch (attrName) {
+                    case "VisibleAnnotations":
+                        visitor.visitAnnotations(annotationPatchReader.readPatch(
+                            new ByteReader(contents, currentOffset),
+                            node.visibleAnnotations != null ? node.visibleAnnotations : Collections.emptyList()
+                        ), true);
+                        break;
+                    case "InvisibleAnnotations":
+                        visitor.visitAnnotations(annotationPatchReader.readPatch(
+                            new ByteReader(contents, currentOffset),
+                            node.invisibleAnnotations != null ? node.invisibleAnnotations : Collections.emptyList()
+                        ), false);
+                        break;
+                    case "VisibleTypeAnnotations":
+                        visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
+                            new ByteReader(contents, currentOffset),
+                            node.visibleTypeAnnotations != null ? node.visibleTypeAnnotations : Collections.emptyList()
+                        ), true);
+                        break;
+                    case "InvisibleTypeAnnotations":
+                        visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
+                            new ByteReader(contents, currentOffset),
+                            node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
+                        ), false);
+                        break;
+                    default:
+                        if (attrName.startsWith("Custom")) {
+                            if (contents[currentOffset] != 0) {
+                                visitor.visitCustomAttribute(
+                                    attrName.substring(6),
+                                    Arrays.copyOfRange(contents, currentOffset + 1, currentOffset + attrLength)
+                                );
+                            } else {
+                                visitor.visitCustomAttribute(attrName.substring(6), null);
+                            }
+                        }
+                        break;
+                }
+            }
+            currentOffset += attrLength;
+        }
+
+        if (visitor != null) {
+            visitor.visitEnd();
+        }
+
+        return currentOffset;
     }
 
     private int readInt(int offset) {

@@ -1,3 +1,5 @@
+package test1;
+
 import io.github.prcraftmc.classdiff.ClassDiffer;
 import io.github.prcraftmc.classdiff.ClassPatcher;
 import io.github.prcraftmc.classdiff.format.DiffReader;
@@ -14,8 +16,8 @@ public class Test {
     public static void main(String[] args) throws Exception {
         final ClassNode helloNode = new ClassNode();
         final ClassNode worldNode = new ClassNode();
-        new ClassReader(Test.class.getResourceAsStream("/Hello.class")).accept(helloNode, 0);
-        new ClassReader(Test.class.getResourceAsStream("/World.class")).accept(worldNode, 0);
+        new ClassReader(Test.class.getResourceAsStream("/test1/Hello.class")).accept(helloNode, 0);
+        new ClassReader(Test.class.getResourceAsStream("/test1/World.class")).accept(worldNode, 0);
 
         final DiffWriter writer = new DiffWriter();
         ClassDiffer.diff(helloNode, worldNode, writer);

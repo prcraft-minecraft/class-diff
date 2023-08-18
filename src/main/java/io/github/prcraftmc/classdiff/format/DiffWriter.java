@@ -1,6 +1,7 @@
 package io.github.prcraftmc.classdiff.format;
 
 import com.github.difflib.patch.Patch;
+import io.github.prcraftmc.classdiff.util.MemberName;
 import io.github.prcraftmc.classdiff.util.PatchWriter;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.jetbrains.annotations.Nullable;
@@ -9,9 +10,7 @@ import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.InnerClassNode;
 import org.objectweb.asm.tree.TypeAnnotationNode;
 
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 
 public class DiffWriter extends DiffVisitor {
     private final SymbolTable symbolTable = new SymbolTable();
@@ -28,6 +27,9 @@ public class DiffWriter extends DiffVisitor {
         vec.putShort(symbolTable.addConstantUtf8(value.desc)).putShort(0);
         value.accept(new AnnotationWriter(symbolTable, true, vec));
     });
+    private final PatchWriter<MemberName> memberNamePatchWriter = new PatchWriter<>((vec, value) ->
+        vec.putShort(symbolTable.addConstantUtf8(value.name)).putShort(symbolTable.addConstantUtf8(value.descriptor))
+    );
 
     private int diffVersion;
     private int classVersion;
@@ -58,7 +60,10 @@ public class DiffWriter extends DiffVisitor {
     private ByteVector visibleTypeAnnotations;
     private ByteVector invisibleTypeAnnotations;
 
-    private final Map<Integer, byte @Nullable []> attributes = new LinkedHashMap<>();
+    private ByteVector recordComponentsPatch;
+    private final List<ByteVector> recordComponents = new ArrayList<>();
+
+    private final Map<Integer, byte @Nullable []> customAttributes = new LinkedHashMap<>();
 
     public DiffWriter() {
     }
@@ -174,10 +179,90 @@ public class DiffWriter extends DiffVisitor {
     }
 
     @Override
+    public void visitRecordComponents(Patch<MemberName> patch) {
+        super.visitRecordComponents(patch);
+
+        memberNamePatchWriter.write(recordComponentsPatch = new ByteVector(), patch);
+    }
+
+    @Override
+    public RecordComponentDiffVisitor visitRecordComponent(String name, String descriptor, @Nullable String signature) {
+        final RecordComponentDiffVisitor delegate = super.visitRecordComponent(name, descriptor, signature);
+
+        final ByteVector vector = new ByteVector();
+        recordComponents.add(vector);
+
+        vector.putShort(symbolTable.addConstantUtf8(name));
+        vector.putShort(symbolTable.addConstantUtf8(descriptor));
+        vector.putShort(signature != null ? symbolTable.addConstantUtf8(signature) : 0);
+        vector.putShort(0);
+        return new RecordComponentDiffVisitor(delegate) {
+            final int countIndex = vector.size() - 2;
+            int attributeCount;
+
+            @Override
+            public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
+                super.visitAnnotations(patch, visible);
+
+                vector.putShort(symbolTable.addConstantUtf8((visible ? "Visible" : "Invisible") + "Annotations"));
+                final int sizeIndex = vector.size();
+                vector.putInt(0);
+                annotationPatchWriter.write(vector, patch);
+                putSize(sizeIndex, vector.size() - sizeIndex - 4);
+                attributeCount++;
+            }
+
+            @Override
+            public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
+                super.visitTypeAnnotations(patch, visible);
+
+                vector.putShort(symbolTable.addConstantUtf8((visible ? "Visible" : "Invisible") + "TypeAnnotations"));
+                final int sizeIndex = vector.size();
+                vector.putInt(0);
+                typeAnnotationPatchWriter.write(vector, patch);
+                putSize(sizeIndex, vector.size() - sizeIndex - 4);
+                attributeCount++;
+            }
+
+            @Override
+            public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
+                super.visitCustomAttribute(name, patchOrContents);
+
+                vector.putShort(symbolTable.addConstantUtf8("Custom" + name));
+                if (patchOrContents == null) {
+                    vector.putInt(1).putByte(0);
+                } else {
+                    vector.putInt(patchOrContents.length + 1)
+                        .putByte(1)
+                        .putByteArray(patchOrContents, 0, patchOrContents.length);
+                }
+                attributeCount++;
+            }
+
+            @Override
+            public void visitEnd() {
+                super.visitEnd();
+
+                final byte[] data = ReflectUtils.getByteVectorData(vector);
+                data[countIndex] = (byte)(attributeCount >> 8);
+                data[countIndex + 1] = (byte)attributeCount;
+            }
+
+            private void putSize(int index, int size) {
+                final byte[] data = ReflectUtils.getByteVectorData(vector);
+                data[index] = (byte)(size >>> 24);
+                data[index + 1] = (byte)(size >> 16);
+                data[index + 2] = (byte)(size >> 8);
+                data[index + 3] = (byte)size;
+            }
+        };
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         super.visitCustomAttribute(name, patchOrContents);
 
-        attributes.put(symbolTable.addConstantUtf8("Custom" + name), patchOrContents);
+        customAttributes.put(symbolTable.addConstantUtf8("Custom" + name), patchOrContents);
     }
 
     public byte[] toByteArray() {
@@ -186,7 +271,7 @@ public class DiffWriter extends DiffVisitor {
         result.putInt(DiffConstants.MAGIC);
         result.putShort(diffVersion);
 
-        int attributeCount = attributes.size();
+        int attributeCount = customAttributes.size();
         if (source != 0 || debug != 0) {
             symbolTable.addConstantUtf8("Source");
             attributeCount++;
@@ -225,6 +310,10 @@ public class DiffWriter extends DiffVisitor {
         }
         if (invisibleTypeAnnotations != null) {
             symbolTable.addConstantUtf8("InvisibleTypeAnnotations");
+            attributeCount++;
+        }
+        if (recordComponentsPatch != null || !recordComponents.isEmpty()) {
+            symbolTable.addConstantUtf8("RecordComponents");
             attributeCount++;
         }
 
@@ -283,13 +372,37 @@ public class DiffWriter extends DiffVisitor {
             result.putShort(symbolTable.addConstantUtf8("InvisibleTypeAnnotations")).putInt(invisibleTypeAnnotations.size());
             result.putByteArray(ReflectUtils.getByteVectorData(invisibleTypeAnnotations), 0, invisibleTypeAnnotations.size());
         }
-        for (final Map.Entry<Integer, byte @Nullable []> entry : attributes.entrySet()) {
+        if (recordComponentsPatch != null || !recordComponents.isEmpty()) {
+            int size = 0;
+            if (recordComponentsPatch != null) {
+                size += recordComponentsPatch.size();
+            } else {
+                size += 2;
+            }
+            size += 2;
+            for (final ByteVector component : recordComponents) {
+                size += component.size();
+            }
+            result.putShort(symbolTable.addConstantUtf8("RecordComponents")).putInt(size);
+            if (recordComponentsPatch != null) {
+                result.putByteArray(ReflectUtils.getByteVectorData(recordComponentsPatch), 0, recordComponentsPatch.size());
+            } else {
+                result.putShort(0);
+            }
+            result.putShort(recordComponents.size());
+            for (final ByteVector component : recordComponents) {
+                result.putByteArray(ReflectUtils.getByteVectorData(component), 0, component.size());
+            }
+        }
+        for (final Map.Entry<Integer, byte @Nullable []> entry : customAttributes.entrySet()) {
             result.putShort(entry.getKey());
             final byte @Nullable [] value = entry.getValue();
             if (value == null) {
                 result.putInt(1).putByte(0);
             } else {
-                result.putInt(value.length + 1).putByteArray(value, 0, value.length);
+                result.putInt(value.length + 1)
+                    .putByte(1)
+                    .putByteArray(value, 0, value.length);
             }
         }
 
