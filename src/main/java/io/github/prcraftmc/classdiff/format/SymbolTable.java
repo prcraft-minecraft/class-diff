@@ -24,6 +24,14 @@ public class SymbolTable {
         return addConstantUtf8Reference(Symbol.CONSTANT_CLASS_TAG, value);
     }
 
+    public Symbol addConstantModule(String value) {
+        return addConstantUtf8Reference(Symbol.CONSTANT_MODULE_TAG, value);
+    }
+
+    public Symbol addConstantPackage(String value) {
+        return addConstantUtf8Reference(Symbol.CONSTANT_PACKAGE_TAG, value);
+    }
+
     private Symbol addConstantUtf8Reference(int tag, String value) {
         final int hashCode = hash(tag, value);
         Entry entry = get(hashCode);

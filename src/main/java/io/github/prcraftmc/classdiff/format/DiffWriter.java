@@ -6,9 +6,7 @@ import io.github.prcraftmc.classdiff.util.PatchWriter;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ByteVector;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.InnerClassNode;
-import org.objectweb.asm.tree.TypeAnnotationNode;
+import org.objectweb.asm.tree.*;
 
 import java.util.*;
 
@@ -29,6 +27,9 @@ public class DiffWriter extends DiffVisitor {
     });
     private final PatchWriter<MemberName> memberNamePatchWriter = new PatchWriter<>((vec, value) ->
         vec.putShort(symbolTable.addConstantUtf8(value.name)).putShort(symbolTable.addConstantUtf8(value.descriptor))
+    );
+    private final PatchWriter<String> packagePatchWriter = new PatchWriter<>((vec, value) ->
+        vec.putShort(symbolTable.addConstantPackage(value).index)
     );
 
     private int diffVersion;
@@ -62,6 +63,8 @@ public class DiffWriter extends DiffVisitor {
 
     private ByteVector recordComponentsPatch;
     private final List<ByteVector> recordComponents = new ArrayList<>();
+
+    private ByteVector module;
 
     private final Map<Integer, byte @Nullable []> customAttributes = new LinkedHashMap<>();
 
@@ -259,6 +262,110 @@ public class DiffWriter extends DiffVisitor {
     }
 
     @Override
+    public ModuleDiffVisitor visitModule(@Nullable String name, int access, @Nullable String version) {
+        final ModuleDiffVisitor delegate = super.visitModule(name, access, version);
+
+        final ByteVector vector = new ByteVector();
+        module = vector;
+
+        vector.putShort(name != null ? symbolTable.addConstantModule(name).index : 0);
+        vector.putShort(access);
+        vector.putShort(version != null ? symbolTable.addConstantUtf8(version) : 0);
+
+        if (name != null && name.isEmpty()) {
+            // Remove the module!
+            return delegate;
+        }
+
+        return new ModuleDiffVisitor(delegate) {
+            @Override
+            public void visitMainClass(@Nullable String mainClass) {
+                super.visitMainClass(mainClass);
+
+                vector.putShort(mainClass != null ? symbolTable.addConstantClass(mainClass).index : 0);
+            }
+
+            @Override
+            public void visitPackages(Patch<String> patch) {
+                super.visitPackages(patch);
+
+                packagePatchWriter.write(vector, patch);
+            }
+
+            @Override
+            public void visitRequires(Patch<ModuleRequireNode> patch) {
+                super.visitRequires(patch);
+
+                new PatchWriter<ModuleRequireNode>((vec, value) -> {
+                    vec.putShort(symbolTable.addConstantModule(value.module).index);
+                    vec.putShort(value.access);
+                    vec.putShort(value.version != null ? symbolTable.addConstantUtf8(value.version) : 0);
+                }).write(vector, patch);
+            }
+
+            @Override
+            public void visitExports(Patch<ModuleExportNode> patch) {
+                super.visitExports(patch);
+
+                new PatchWriter<ModuleExportNode>((vec, value) -> {
+                    vec.putShort(symbolTable.addConstantPackage(value.packaze).index);
+                    vec.putShort(value.access);
+                    if (value.modules != null) {
+                        vec.putShort(value.modules.size());
+                        for (final String module : value.modules) {
+                            vec.putShort(symbolTable.addConstantModule(module).index);
+                        }
+                    } else {
+                        vec.putShort(0);
+                    }
+                }).write(vector, patch);
+            }
+
+            @Override
+            public void visitOpens(Patch<ModuleOpenNode> patch) {
+                super.visitOpens(patch);
+
+                new PatchWriter<ModuleOpenNode>((vec, value) -> {
+                    vec.putShort(symbolTable.addConstantPackage(value.packaze).index);
+                    vec.putShort(value.access);
+                    if (value.modules != null) {
+                        vec.putShort(value.modules.size());
+                        for (final String module : value.modules) {
+                            vec.putShort(symbolTable.addConstantModule(module).index);
+                        }
+                    } else {
+                        vec.putShort(0);
+                    }
+                }).write(vector, patch);
+            }
+
+            @Override
+            public void visitUses(Patch<String> patch) {
+                super.visitUses(patch);
+
+                classPatchWriter.write(vector, patch);
+            }
+
+            @Override
+            public void visitProvides(Patch<ModuleProvideNode> patch) {
+                super.visitProvides(patch);
+
+                new PatchWriter<ModuleProvideNode>((vec, value) -> {
+                    vec.putShort(symbolTable.addConstantClass(value.service).index);
+                    if (value.providers != null) {
+                        vec.putShort(value.providers.size());
+                        for (final String provider : value.providers) {
+                            vec.putShort(symbolTable.addConstantClass(provider).index);
+                        }
+                    } else {
+                        vec.putShort(0);
+                    }
+                }).write(vector, patch);
+            }
+        };
+    }
+
+    @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         super.visitCustomAttribute(name, patchOrContents);
 
@@ -314,6 +421,10 @@ public class DiffWriter extends DiffVisitor {
         }
         if (recordComponentsPatch != null || !recordComponents.isEmpty()) {
             symbolTable.addConstantUtf8("RecordComponents");
+            attributeCount++;
+        }
+        if (module != null) {
+            symbolTable.addConstantUtf8("Module");
             attributeCount++;
         }
 
@@ -393,6 +504,10 @@ public class DiffWriter extends DiffVisitor {
             for (final ByteVector component : recordComponents) {
                 result.putByteArray(ReflectUtils.getByteVectorData(component), 0, component.size());
             }
+        }
+        if (module != null) {
+            result.putShort(symbolTable.addConstantUtf8("Module")).putInt(module.size());
+            result.putByteArray(ReflectUtils.getByteVectorData(module), 0, module.size());
         }
         for (final Map.Entry<Integer, byte @Nullable []> entry : customAttributes.entrySet()) {
             result.putShort(entry.getKey());

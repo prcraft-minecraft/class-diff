@@ -1,9 +1,7 @@
 package io.github.prcraftmc.classdiff.util;
 
 import org.objectweb.asm.TypePath;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.InnerClassNode;
-import org.objectweb.asm.tree.TypeAnnotationNode;
+import org.objectweb.asm.tree.*;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -29,7 +27,10 @@ public class Equalizers {
         if (a == b) {
             return true;
         }
-        if (a == null || b == null || !Objects.equals(a.desc, b.desc)) {
+        if (a == null || b == null) {
+            return false;
+        }
+        if (!Objects.equals(a.desc, b.desc)) {
             return false;
         }
         return listEquals(a.values, b.values, Equalizers::annotationValue);
@@ -59,7 +60,13 @@ public class Equalizers {
         if (a == b) {
             return true;
         }
-        if (a == null || b == null || a.typeRef != b.typeRef || !typePath(a.typePath, b.typePath)) {
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.typeRef != b.typeRef) {
+            return false;
+        }
+        if (!typePath(a.typePath, b.typePath)) {
             return false;
         }
         return annotation(a, b);
@@ -69,7 +76,10 @@ public class Equalizers {
         if (a == b) {
             return true;
         }
-        if (a == null || b == null || a.getLength() != b.getLength()) {
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.getLength() != b.getLength()) {
             return false;
         }
         for (int i = 0, l = a.getLength(); i < l; i++) {
@@ -78,6 +88,104 @@ public class Equalizers {
             }
         }
         return true;
+    }
+
+    public static boolean module(ModuleNode a, ModuleNode b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (!Objects.equals(a.name, b.name)) {
+            return false;
+        }
+        if (a.access != b.access) {
+            return false;
+        }
+        if (!Objects.equals(a.version, b.version)) {
+            return false;
+        }
+        if (!Objects.equals(a.mainClass, b.mainClass)) {
+            return false;
+        }
+        if (!Objects.equals(a.packages, b.packages)) {
+            return false;
+        }
+        if (!listEquals(a.requires, b.requires, Equalizers::moduleRequire)) {
+            return false;
+        }
+        if (!listEquals(a.exports, b.exports, Equalizers::moduleExport)) {
+            return false;
+        }
+        if (!listEquals(a.opens, b.opens, Equalizers::moduleOpen)) {
+            return false;
+        }
+        if (!Objects.equals(a.uses, b.uses)) {
+            return false;
+        }
+        return listEquals(a.provides, b.provides, Equalizers::moduleProvide);
+    }
+
+    public static boolean moduleRequire(ModuleRequireNode a, ModuleRequireNode b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (!Objects.equals(a.module, b.module)) {
+            return false;
+        }
+        if (a.access != b.access) {
+            return false;
+        }
+        return Objects.equals(a.version, b.version);
+    }
+
+    public static boolean moduleExport(ModuleExportNode a, ModuleExportNode b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (!Objects.equals(a.packaze, b.packaze)) {
+            return false;
+        }
+        if (a.access != b.access) {
+            return false;
+        }
+        return Objects.equals(a.modules, b.modules);
+    }
+
+    public static boolean moduleOpen(ModuleOpenNode a, ModuleOpenNode b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (!Objects.equals(a.packaze, b.packaze)) {
+            return false;
+        }
+        if (a.access != b.access) {
+            return false;
+        }
+        return Objects.equals(a.modules, b.modules);
+    }
+
+    public static boolean moduleProvide(ModuleProvideNode a, ModuleProvideNode b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (!Objects.equals(a.service, b.service)) {
+            return false;
+        }
+        return Objects.equals(a.providers, b.providers);
     }
 
     public static <T> boolean listEquals(List<T> a, List<T> b, BiPredicate<T, T> equalizer) {

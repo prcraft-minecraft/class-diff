@@ -9,8 +9,10 @@ import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.objectweb.asm.*;
 import org.objectweb.asm.tree.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 public class DiffReader {
     private final PatchReader<String> classPatchReader = new PatchReader<>(reader -> {
@@ -36,6 +38,10 @@ public class DiffReader {
     private final PatchReader<MemberName> memberNamePatchReader = new PatchReader<>(reader -> {
         reader.skip(4);
         return new MemberName(readUtf8(reader.pointer() - 4), readUtf8(reader.pointer() - 2));
+    });
+    private final PatchReader<String> packagePatchReader = new PatchReader<>(reader -> {
+        reader.skip(2);
+        return readPackage(reader.pointer() - 2);
     });
 
     private final byte[] contents;
@@ -243,6 +249,19 @@ public class DiffReader {
                     }
                     break;
                 }
+                case "Module": {
+                    final String name = readModule(readPos);
+                    final int access = readShort(readPos + 2);
+                    final String version = readUtf8(readPos + 4);
+                    if (name != null) {
+                        ModuleNode moduleNode = node.module;
+                        if (moduleNode == null) {
+                            moduleNode = new ModuleNode(name, access, version); // Temporary
+                        }
+                        readModule(readPos + 6, visitor.visitModule(name, access, version), moduleNode);
+                    }
+                    break;
+                }
                 default:
                     if (attributeName.startsWith("Custom")) {
                         if (contents[readPos] != 0) {
@@ -260,6 +279,66 @@ public class DiffReader {
         }
 
         context.remove();
+        visitor.visitEnd();
+    }
+
+    private void readModule(int currentOffset, ModuleDiffVisitor visitor, ModuleNode node) {
+        if (visitor == null) return;
+
+        visitor.visitMainClass(readClass(currentOffset));
+
+        final ByteReader reader = new ByteReader(contents, currentOffset + 2);
+
+        visitor.visitPackages(packagePatchReader.readPatch(
+            reader, node.packages != null ? node.packages : Collections.emptyList()
+        ));
+
+        visitor.visitRequires(new PatchReader<>(reader1 -> {
+            reader1.skip(6);
+            return new ModuleRequireNode(
+                readModule(reader1.pointer() - 6),
+                readShort(reader1.pointer() - 4),
+                readUtf8(reader1.pointer() - 2)
+            );
+        }).readPatch(reader, node.requires != null ? node.requires : Collections.emptyList()));
+
+        visitor.visitExports(new PatchReader<>(reader1 -> {
+            final String exports = readPackage(reader1.pointer());
+            reader1.skip(2);
+            final int exportsFlags = reader1.readShort();
+            final List<String> exportsTo = new ArrayList<>();
+            for (int i = 0, l = reader1.readShort(); i < l; i++) {
+                exportsTo.add(readModule(reader1.pointer()));
+                reader1.skip(2);
+            }
+            return new ModuleExportNode(exports, exportsFlags, exportsTo);
+        }).readPatch(reader, node.exports != null ? node.exports : Collections.emptyList()));
+
+        visitor.visitOpens(new PatchReader<>(reader1 -> {
+            final String opens = readPackage(reader1.pointer());
+            reader1.skip(2);
+            final int opensFlags = reader1.readShort();
+            final List<String> opensTo = new ArrayList<>();
+            for (int i = 0, l = reader1.readShort(); i < l; i++) {
+                opensTo.add(readModule(reader1.pointer()));
+                reader1.skip(2);
+            }
+            return new ModuleOpenNode(opens, opensFlags, opensTo);
+        }).readPatch(reader, node.opens != null ? node.opens : Collections.emptyList()));
+
+        visitor.visitUses(classPatchReader.readPatch(reader, node.uses != null ? node.uses : Collections.emptyList()));
+
+        visitor.visitProvides(new PatchReader<>(reader1 -> {
+            final String provides = readClass(reader1.pointer());
+            reader1.skip(2);
+            final List<String> providesWith = new ArrayList<>();
+            for (int i = 0, l = reader1.readShort(); i < l; i++) {
+                providesWith.add(readClass(reader1.pointer()));
+                reader1.skip(2);
+            }
+            return new ModuleProvideNode(provides, providesWith);
+        }).readPatch(reader, node.provides != null ? node.provides : Collections.emptyList()));
+
         visitor.visitEnd();
     }
 
@@ -353,6 +432,14 @@ public class DiffReader {
     }
 
     private String readClass(int offset) {
+        return readStringish(offset);
+    }
+
+    private String readModule(int offset) {
+        return readStringish(offset);
+    }
+
+    private String readPackage(int offset) {
         return readStringish(offset);
     }
 

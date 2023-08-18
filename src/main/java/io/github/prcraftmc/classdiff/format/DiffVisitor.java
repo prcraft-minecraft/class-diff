@@ -110,6 +110,14 @@ public class DiffVisitor implements AnnotatedElementVisitor, CustomAttributableV
         return null;
     }
 
+    @Nullable
+    public ModuleDiffVisitor visitModule(@Nullable String name, int access, @Nullable String version) {
+        if (delegate != null) {
+            return delegate.visitModule(name, access, version);
+        }
+        return null;
+    }
+
     @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         if (delegate != null) {

@@ -5,6 +5,7 @@ import com.github.difflib.patch.PatchFailedException;
 import com.nothome.delta.GDiffPatcher;
 import io.github.prcraftmc.classdiff.format.DiffReader;
 import io.github.prcraftmc.classdiff.format.DiffVisitor;
+import io.github.prcraftmc.classdiff.format.ModuleDiffVisitor;
 import io.github.prcraftmc.classdiff.format.RecordComponentDiffVisitor;
 import io.github.prcraftmc.classdiff.util.MemberName;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
@@ -258,6 +259,101 @@ public class ClassPatcher extends DiffVisitor {
                         }
                         fRecordNode.invisibleTypeAnnotations = patch.applyTo(fRecordNode.invisibleTypeAnnotations);
                     }
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+        };
+    }
+
+    @Override
+    public ModuleDiffVisitor visitModule(@Nullable String name, int access, @Nullable String version) {
+        if (name == null) {
+            // Remove the module!
+            node.module = null;
+            return null;
+        }
+        if (node.module == null) {
+            node.module = new ModuleNode(name, access, version);
+        } else {
+            node.module.name = name;
+            node.module.access = access;
+            node.module.version = version;
+        }
+
+        return new ModuleDiffVisitor() {
+            @Override
+            public void visitMainClass(@Nullable String mainClass) {
+                node.module.mainClass = mainClass;
+            }
+
+            @Override
+            public void visitPackages(Patch<String> patch) {
+                if (node.module.packages == null) {
+                    node.module.packages = Collections.emptyList();
+                }
+                try {
+                    node.module.packages = patch.applyTo(node.module.packages);
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitRequires(Patch<ModuleRequireNode> patch) {
+                if (node.module.requires == null) {
+                    node.module.requires = Collections.emptyList();
+                }
+                try {
+                    node.module.requires = patch.applyTo(node.module.requires);
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitExports(Patch<ModuleExportNode> patch) {
+                if (node.module.exports == null) {
+                    node.module.exports = Collections.emptyList();
+                }
+                try {
+                    node.module.exports = patch.applyTo(node.module.exports);
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitOpens(Patch<ModuleOpenNode> patch) {
+                if (node.module.opens == null) {
+                    node.module.opens = Collections.emptyList();
+                }
+                try {
+                    node.module.opens = patch.applyTo(node.module.opens);
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitUses(Patch<String> patch) {
+                if (node.module.uses == null) {
+                    node.module.uses = Collections.emptyList();
+                }
+                try {
+                    node.module.uses = patch.applyTo(node.module.uses);
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitProvides(Patch<ModuleProvideNode> patch) {
+                if (node.module.provides == null) {
+                    node.module.provides = Collections.emptyList();
+                }
+                try {
+                    node.module.provides = patch.applyTo(node.module.provides);
                 } catch (PatchFailedException e) {
                     throw new UncheckedPatchFailure(e);
                 }

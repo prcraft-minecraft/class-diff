@@ -9,10 +9,7 @@ import io.github.prcraftmc.classdiff.util.MemberName;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.RecordComponentNode;
-import org.objectweb.asm.tree.TypeAnnotationNode;
+import org.objectweb.asm.tree.*;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -172,6 +169,62 @@ public class ClassDiffer {
                         }
                         visitor.visitEnd();
                     }
+                }
+            }
+        }
+
+        if (!Equalizers.module(original.module, modified.module)) {
+            if (modified.module == null) {
+                final ModuleDiffVisitor moduleOut = output.visitModule("", 0, null);
+                if (moduleOut != null) {
+                    moduleOut.visitEnd();
+                }
+            } else {
+                ModuleNode aModule = original.module;
+                if (aModule == null) {
+                    aModule = new ModuleNode("", 0, null);
+                }
+                final ModuleNode bModule = modified.module;
+
+                final ModuleDiffVisitor moduleOut = output.visitModule(bModule.name, bModule.access, bModule.version);
+                if (moduleOut != null) {
+                    moduleOut.visitMainClass(bModule.mainClass);
+
+                    moduleOut.visitPackages(DiffUtils.diff(
+                        aModule.packages != null ? aModule.packages : Collections.emptyList(),
+                        bModule.packages != null ? bModule.packages : Collections.emptyList()
+                    ));
+
+                    moduleOut.visitRequires(DiffUtils.diff(
+                        aModule.requires != null ? aModule.requires : Collections.emptyList(),
+                        bModule.requires != null ? bModule.requires : Collections.emptyList(),
+                        Equalizers::moduleRequire
+                    ));
+
+                    moduleOut.visitExports(DiffUtils.diff(
+                        aModule.exports != null ? aModule.exports : Collections.emptyList(),
+                        bModule.exports != null ? bModule.exports : Collections.emptyList(),
+                        Equalizers::moduleExport
+                    ));
+
+                    moduleOut.visitOpens(DiffUtils.diff(
+                        aModule.opens != null ? aModule.opens : Collections.emptyList(),
+                        bModule.opens != null ? bModule.opens : Collections.emptyList(),
+                        Equalizers::moduleOpen
+                    ));
+
+                    moduleOut.visitUses(DiffUtils.diff(
+                        aModule.uses != null ? aModule.uses : Collections.emptyList(),
+                        bModule.uses != null ? bModule.uses : Collections.emptyList()
+                    ));
+
+                    moduleOut.visitProvides(DiffUtils.diff(
+                        aModule.provides != null ? aModule.provides : Collections.emptyList(),
+                        bModule.provides != null ? bModule.provides : Collections.emptyList(),
+                        Equalizers::moduleProvide
+                    ));
+
+                    moduleOut.visitEnd();
                 }
             }
         }
