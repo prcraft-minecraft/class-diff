@@ -285,59 +285,78 @@ public class DiffReader {
     private void readModule(int currentOffset, ModuleDiffVisitor visitor, ModuleNode node) {
         if (visitor == null) return;
 
-        visitor.visitMainClass(readClass(currentOffset));
+        final ByteReader reader = new ByteReader(contents);
 
-        final ByteReader reader = new ByteReader(contents, currentOffset + 2);
-
-        visitor.visitPackages(packagePatchReader.readPatch(
-            reader, node.packages != null ? node.packages : Collections.emptyList()
-        ));
-
-        visitor.visitRequires(new PatchReader<>(reader1 -> {
-            reader1.skip(6);
-            return new ModuleRequireNode(
-                readModule(reader1.pointer() - 6),
-                readShort(reader1.pointer() - 4),
-                readUtf8(reader1.pointer() - 2)
-            );
-        }).readPatch(reader, node.requires != null ? node.requires : Collections.emptyList()));
-
-        visitor.visitExports(new PatchReader<>(reader1 -> {
-            final String exports = readPackage(reader1.pointer());
-            reader1.skip(2);
-            final int exportsFlags = reader1.readShort();
-            final List<String> exportsTo = new ArrayList<>();
-            for (int i = 0, l = reader1.readShort(); i < l; i++) {
-                exportsTo.add(readModule(reader1.pointer()));
-                reader1.skip(2);
+        final int attrCount = readShort(currentOffset);
+        currentOffset += 2;
+        for (int i = 0; i < attrCount; i++) {
+            final String attrName = readUtf8(currentOffset);
+            final int attrLen = readInt(currentOffset + 2);
+            currentOffset += 6;
+            reader.pointer(currentOffset);
+            switch (attrName) {
+                case "MainClass":
+                    visitor.visitMainClass(readClass(currentOffset));
+                    break;
+                case "Packages":
+                    visitor.visitPackages(packagePatchReader.readPatch(
+                        reader, node.packages != null ? node.packages : Collections.emptyList()
+                    ));
+                    break;
+                case "Requires":
+                    visitor.visitRequires(new PatchReader<>(reader1 -> {
+                        reader1.skip(6);
+                        return new ModuleRequireNode(
+                            readModule(reader1.pointer() - 6),
+                            readShort(reader1.pointer() - 4),
+                            readUtf8(reader1.pointer() - 2)
+                        );
+                    }).readPatch(reader, node.requires != null ? node.requires : Collections.emptyList()));
+                    break;
+                case "Exports":
+                    visitor.visitExports(new PatchReader<>(reader1 -> {
+                        final String exports = readPackage(reader1.pointer());
+                        reader1.skip(2);
+                        final int exportsFlags = reader1.readShort();
+                        final List<String> exportsTo = new ArrayList<>();
+                        for (int j = 0, l = reader1.readShort(); j < l; j++) {
+                            exportsTo.add(readModule(reader1.pointer()));
+                            reader1.skip(2);
+                        }
+                        return new ModuleExportNode(exports, exportsFlags, exportsTo);
+                    }).readPatch(reader, node.exports != null ? node.exports : Collections.emptyList()));
+                    break;
+                case "Opens":
+                    visitor.visitOpens(new PatchReader<>(reader1 -> {
+                        final String opens = readPackage(reader1.pointer());
+                        reader1.skip(2);
+                        final int opensFlags = reader1.readShort();
+                        final List<String> opensTo = new ArrayList<>();
+                        for (int j = 0, l = reader1.readShort(); j < l; j++) {
+                            opensTo.add(readModule(reader1.pointer()));
+                            reader1.skip(2);
+                        }
+                        return new ModuleOpenNode(opens, opensFlags, opensTo);
+                    }).readPatch(reader, node.opens != null ? node.opens : Collections.emptyList()));
+                    break;
+                case "Uses":
+                    visitor.visitUses(classPatchReader.readPatch(reader, node.uses != null ? node.uses : Collections.emptyList()));
+                    break;
+                case "Provides":
+                    visitor.visitProvides(new PatchReader<>(reader1 -> {
+                        final String provides = readClass(reader1.pointer());
+                        reader1.skip(2);
+                        final List<String> providesWith = new ArrayList<>();
+                        for (int j = 0, l = reader1.readShort(); j < l; j++) {
+                            providesWith.add(readClass(reader1.pointer()));
+                            reader1.skip(2);
+                        }
+                        return new ModuleProvideNode(provides, providesWith);
+                    }).readPatch(reader, node.provides != null ? node.provides : Collections.emptyList()));
+                    break;
             }
-            return new ModuleExportNode(exports, exportsFlags, exportsTo);
-        }).readPatch(reader, node.exports != null ? node.exports : Collections.emptyList()));
-
-        visitor.visitOpens(new PatchReader<>(reader1 -> {
-            final String opens = readPackage(reader1.pointer());
-            reader1.skip(2);
-            final int opensFlags = reader1.readShort();
-            final List<String> opensTo = new ArrayList<>();
-            for (int i = 0, l = reader1.readShort(); i < l; i++) {
-                opensTo.add(readModule(reader1.pointer()));
-                reader1.skip(2);
-            }
-            return new ModuleOpenNode(opens, opensFlags, opensTo);
-        }).readPatch(reader, node.opens != null ? node.opens : Collections.emptyList()));
-
-        visitor.visitUses(classPatchReader.readPatch(reader, node.uses != null ? node.uses : Collections.emptyList()));
-
-        visitor.visitProvides(new PatchReader<>(reader1 -> {
-            final String provides = readClass(reader1.pointer());
-            reader1.skip(2);
-            final List<String> providesWith = new ArrayList<>();
-            for (int i = 0, l = reader1.readShort(); i < l; i++) {
-                providesWith.add(readClass(reader1.pointer()));
-                reader1.skip(2);
-            }
-            return new ModuleProvideNode(provides, providesWith);
-        }).readPatch(reader, node.provides != null ? node.provides : Collections.emptyList()));
+            currentOffset += attrLen;
+        }
 
         visitor.visitEnd();
     }

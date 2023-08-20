@@ -201,30 +201,25 @@ public class DiffWriter extends DiffVisitor {
         vector.putShort(0);
         return new RecordComponentDiffVisitor(delegate) {
             final int countIndex = vector.size() - 2;
+            int sizeIndex;
             int attributeCount;
 
             @Override
             public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
                 super.visitAnnotations(patch, visible);
 
-                vector.putShort(symbolTable.addConstantUtf8((visible ? "Visible" : "Invisible") + "Annotations"));
-                final int sizeIndex = vector.size();
-                vector.putInt(0);
+                preAttr((visible ? "Visible" : "Invisible") + "Annotations");
                 annotationPatchWriter.write(vector, patch);
-                putSize(sizeIndex, vector.size() - sizeIndex - 4);
-                attributeCount++;
+                postAttr();
             }
 
             @Override
             public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
                 super.visitTypeAnnotations(patch, visible);
 
-                vector.putShort(symbolTable.addConstantUtf8((visible ? "Visible" : "Invisible") + "TypeAnnotations"));
-                final int sizeIndex = vector.size();
-                vector.putInt(0);
+                preAttr((visible ? "Visible" : "Invisible") + "TypeAnnotations");
                 typeAnnotationPatchWriter.write(vector, patch);
-                putSize(sizeIndex, vector.size() - sizeIndex - 4);
-                attributeCount++;
+                postAttr();
             }
 
             @Override
@@ -251,8 +246,16 @@ public class DiffWriter extends DiffVisitor {
                 data[countIndex + 1] = (byte)attributeCount;
             }
 
-            private void putSize(int index, int size) {
+            private void preAttr(String name) {
+                vector.putShort(symbolTable.addConstantUtf8(name));
+                sizeIndex = vector.size();
+                vector.putInt(0);
+            }
+
+            private void postAttr() {
                 final byte[] data = ReflectUtils.getByteVectorData(vector);
+                final int index = sizeIndex;
+                final int size = vector.size() - sizeIndex - 4;
                 data[index] = (byte)(size >>> 24);
                 data[index + 1] = (byte)(size >> 16);
                 data[index + 2] = (byte)(size >> 8);
@@ -271,42 +274,48 @@ public class DiffWriter extends DiffVisitor {
         vector.putShort(name != null ? symbolTable.addConstantModule(name).index : 0);
         vector.putShort(access);
         vector.putShort(version != null ? symbolTable.addConstantUtf8(version) : 0);
-
-        if (name != null && name.isEmpty()) {
-            // Remove the module!
-            return delegate;
-        }
-
+        vector.putShort(0);
         return new ModuleDiffVisitor(delegate) {
+            final int countIndex = vector.size() - 2;
+            int sizeIndex;
+            int attributeCount;
+
             @Override
             public void visitMainClass(@Nullable String mainClass) {
                 super.visitMainClass(mainClass);
 
+                preAttr("MainClass");
                 vector.putShort(mainClass != null ? symbolTable.addConstantClass(mainClass).index : 0);
+                postAttr();
             }
 
             @Override
             public void visitPackages(Patch<String> patch) {
                 super.visitPackages(patch);
 
+                preAttr("Packages");
                 packagePatchWriter.write(vector, patch);
+                postAttr();
             }
 
             @Override
             public void visitRequires(Patch<ModuleRequireNode> patch) {
                 super.visitRequires(patch);
 
+                preAttr("Requires");
                 new PatchWriter<ModuleRequireNode>((vec, value) -> {
                     vec.putShort(symbolTable.addConstantModule(value.module).index);
                     vec.putShort(value.access);
                     vec.putShort(value.version != null ? symbolTable.addConstantUtf8(value.version) : 0);
                 }).write(vector, patch);
+                postAttr();
             }
 
             @Override
             public void visitExports(Patch<ModuleExportNode> patch) {
                 super.visitExports(patch);
 
+                preAttr("Exports");
                 new PatchWriter<ModuleExportNode>((vec, value) -> {
                     vec.putShort(symbolTable.addConstantPackage(value.packaze).index);
                     vec.putShort(value.access);
@@ -319,12 +328,14 @@ public class DiffWriter extends DiffVisitor {
                         vec.putShort(0);
                     }
                 }).write(vector, patch);
+                postAttr();
             }
 
             @Override
             public void visitOpens(Patch<ModuleOpenNode> patch) {
                 super.visitOpens(patch);
 
+                preAttr("Opens");
                 new PatchWriter<ModuleOpenNode>((vec, value) -> {
                     vec.putShort(symbolTable.addConstantPackage(value.packaze).index);
                     vec.putShort(value.access);
@@ -337,19 +348,23 @@ public class DiffWriter extends DiffVisitor {
                         vec.putShort(0);
                     }
                 }).write(vector, patch);
+                postAttr();
             }
 
             @Override
             public void visitUses(Patch<String> patch) {
                 super.visitUses(patch);
 
+                preAttr("Uses");
                 classPatchWriter.write(vector, patch);
+                postAttr();
             }
 
             @Override
             public void visitProvides(Patch<ModuleProvideNode> patch) {
                 super.visitProvides(patch);
 
+                preAttr("Provides");
                 new PatchWriter<ModuleProvideNode>((vec, value) -> {
                     vec.putShort(symbolTable.addConstantClass(value.service).index);
                     if (value.providers != null) {
@@ -361,6 +376,33 @@ public class DiffWriter extends DiffVisitor {
                         vec.putShort(0);
                     }
                 }).write(vector, patch);
+                postAttr();
+            }
+
+            @Override
+            public void visitEnd() {
+                super.visitEnd();
+
+                final byte[] data = ReflectUtils.getByteVectorData(vector);
+                data[countIndex] = (byte)(attributeCount >> 8);
+                data[countIndex + 1] = (byte)attributeCount;
+            }
+
+            private void preAttr(String name) {
+                vector.putShort(symbolTable.addConstantUtf8(name));
+                sizeIndex = vector.size();
+                vector.putInt(0);
+            }
+
+            private void postAttr() {
+                final byte[] data = ReflectUtils.getByteVectorData(vector);
+                final int index = sizeIndex;
+                final int size = vector.size() - sizeIndex - 4;
+                data[index] = (byte)(size >>> 24);
+                data[index + 1] = (byte)(size >> 16);
+                data[index + 2] = (byte)(size >> 8);
+                data[index + 3] = (byte)size;
+                attributeCount++;
             }
         };
     }

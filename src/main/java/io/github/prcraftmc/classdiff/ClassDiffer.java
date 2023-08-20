@@ -178,7 +178,7 @@ public class ClassDiffer {
 
         if (!Equalizers.module(original.module, modified.module)) {
             if (modified.module == null) {
-                final ModuleDiffVisitor moduleOut = output.visitModule("", 0, null);
+                final ModuleDiffVisitor moduleOut = output.visitModule(null, 0, null);
                 if (moduleOut != null) {
                     moduleOut.visitEnd();
                 }
@@ -191,41 +191,55 @@ public class ClassDiffer {
 
                 final ModuleDiffVisitor moduleOut = output.visitModule(bModule.name, bModule.access, bModule.version);
                 if (moduleOut != null) {
-                    moduleOut.visitMainClass(bModule.mainClass);
+                    if (!Objects.equals(aModule.mainClass, bModule.mainClass)) {
+                        moduleOut.visitMainClass(bModule.mainClass);
+                    }
 
-                    moduleOut.visitPackages(DiffUtils.diff(
-                        aModule.packages != null ? aModule.packages : Collections.emptyList(),
-                        bModule.packages != null ? bModule.packages : Collections.emptyList()
-                    ));
+                    if (!Objects.equals(aModule.packages, bModule.packages)) {
+                        moduleOut.visitPackages(DiffUtils.diff(
+                            aModule.packages != null ? aModule.packages : Collections.emptyList(),
+                            bModule.packages != null ? bModule.packages : Collections.emptyList()
+                        ));
+                    }
 
-                    moduleOut.visitRequires(DiffUtils.diff(
-                        aModule.requires != null ? aModule.requires : Collections.emptyList(),
-                        bModule.requires != null ? bModule.requires : Collections.emptyList(),
-                        Equalizers::moduleRequire
-                    ));
+                    if (!Equalizers.listEquals(aModule.requires, bModule.requires, Equalizers::moduleRequire)) {
+                        moduleOut.visitRequires(DiffUtils.diff(
+                            aModule.requires != null ? aModule.requires : Collections.emptyList(),
+                            bModule.requires != null ? bModule.requires : Collections.emptyList(),
+                            Equalizers::moduleRequire
+                        ));
+                    }
 
-                    moduleOut.visitExports(DiffUtils.diff(
-                        aModule.exports != null ? aModule.exports : Collections.emptyList(),
-                        bModule.exports != null ? bModule.exports : Collections.emptyList(),
-                        Equalizers::moduleExport
-                    ));
+                    if (!Equalizers.listEquals(aModule.exports, bModule.exports, Equalizers::moduleExport)) {
+                        moduleOut.visitExports(DiffUtils.diff(
+                            aModule.exports != null ? aModule.exports : Collections.emptyList(),
+                            bModule.exports != null ? bModule.exports : Collections.emptyList(),
+                            Equalizers::moduleExport
+                        ));
+                    }
 
-                    moduleOut.visitOpens(DiffUtils.diff(
-                        aModule.opens != null ? aModule.opens : Collections.emptyList(),
-                        bModule.opens != null ? bModule.opens : Collections.emptyList(),
-                        Equalizers::moduleOpen
-                    ));
+                    if (!Equalizers.listEquals(aModule.opens, bModule.opens, Equalizers::moduleOpen)) {
+                        moduleOut.visitOpens(DiffUtils.diff(
+                            aModule.opens != null ? aModule.opens : Collections.emptyList(),
+                            bModule.opens != null ? bModule.opens : Collections.emptyList(),
+                            Equalizers::moduleOpen
+                        ));
+                    }
 
-                    moduleOut.visitUses(DiffUtils.diff(
-                        aModule.uses != null ? aModule.uses : Collections.emptyList(),
-                        bModule.uses != null ? bModule.uses : Collections.emptyList()
-                    ));
+                    if (!Objects.equals(aModule.packages, bModule.packages)) {
+                        moduleOut.visitUses(DiffUtils.diff(
+                            aModule.uses != null ? aModule.uses : Collections.emptyList(),
+                            bModule.uses != null ? bModule.uses : Collections.emptyList()
+                        ));
+                    }
 
-                    moduleOut.visitProvides(DiffUtils.diff(
-                        aModule.provides != null ? aModule.provides : Collections.emptyList(),
-                        bModule.provides != null ? bModule.provides : Collections.emptyList(),
-                        Equalizers::moduleProvide
-                    ));
+                    if (!Equalizers.listEquals(aModule.provides, bModule.provides, Equalizers::moduleProvide)) {
+                        moduleOut.visitProvides(DiffUtils.diff(
+                            aModule.provides != null ? aModule.provides : Collections.emptyList(),
+                            bModule.provides != null ? bModule.provides : Collections.emptyList(),
+                            Equalizers::moduleProvide
+                        ));
+                    }
 
                     moduleOut.visitEnd();
                 }
