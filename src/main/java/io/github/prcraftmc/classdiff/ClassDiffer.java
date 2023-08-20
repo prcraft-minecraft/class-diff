@@ -131,12 +131,15 @@ public class ClassDiffer {
                 for (int i = 0; i < aComponents.size(); i++) {
                     final MemberName name = aComponents.get(i);
                     if (extra.remove(name)) {
+                        final RecordComponentNode aNode = original.recordComponents.get(i);
                         final RecordComponentNode bNode = bMap.get(name);
-                        final RecordComponentDiffVisitor visitor = output.visitRecordComponent(
-                            name.name, name.descriptor, bNode.signature
-                        );
-                        if (visitor != null) {
-                            diffRecordComponents(original.recordComponents.get(i), bNode, visitor);
+                        if (!Equalizers.recordComponent(aNode, bNode)) {
+                            final RecordComponentDiffVisitor visitor = output.visitRecordComponent(
+                                name.name, name.descriptor, bNode.signature
+                            );
+                            if (visitor != null) {
+                                diffRecordComponents(aNode, bNode, visitor);
+                            }
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 package io.github.prcraftmc.classdiff.util;
 
+import org.objectweb.asm.Attribute;
 import org.objectweb.asm.TypePath;
 import org.objectweb.asm.tree.*;
 
@@ -88,6 +89,50 @@ public class Equalizers {
             }
         }
         return true;
+    }
+
+    public static boolean recordComponent(RecordComponentNode a, RecordComponentNode b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (!a.name.equals(b.name)) {
+            return false;
+        }
+        if (!a.descriptor.equals(b.descriptor)) {
+            return false;
+        }
+        if (!Objects.equals(a.signature, b.signature)) {
+            return false;
+        }
+        if (!listEquals(a.visibleAnnotations, b.visibleAnnotations, Equalizers::annotation)) {
+            return false;
+        }
+        if (!listEquals(a.invisibleAnnotations, b.invisibleAnnotations, Equalizers::annotation)) {
+            return false;
+        }
+        if (!listEquals(a.visibleTypeAnnotations, b.visibleTypeAnnotations, Equalizers::typeAnnotation)) {
+            return false;
+        }
+        if (!listEquals(a.invisibleTypeAnnotations, b.invisibleTypeAnnotations, Equalizers::typeAnnotation)) {
+            return false;
+        }
+        return listEquals(a.attrs, b.attrs, Equalizers::attribute);
+    }
+
+    public static boolean attribute(Attribute a, Attribute b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (!a.type.equals(b.type)) {
+            return false;
+        }
+        return Arrays.equals(ReflectUtils.getAttributeContent(a), ReflectUtils.getAttributeContent(b));
     }
 
     public static boolean module(ModuleNode a, ModuleNode b) {
