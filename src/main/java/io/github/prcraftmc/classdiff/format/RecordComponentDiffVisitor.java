@@ -5,7 +5,7 @@ import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.TypeAnnotationNode;
 
-public class RecordComponentDiffVisitor implements AnnotatedElementVisitor, CustomAttributableVisitor {
+public abstract class RecordComponentDiffVisitor implements AnnotatedElementVisitor, CustomAttributableVisitor {
     @Nullable
     private final RecordComponentDiffVisitor delegate;
 

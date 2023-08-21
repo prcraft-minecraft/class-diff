@@ -115,146 +115,232 @@ public class ClassDiffer {
             original.invisibleTypeAnnotations, modified.invisibleTypeAnnotations
         );
 
-        {
-            final List<MemberName> aComponents = MemberName.fromRecordComponents(original.recordComponents);
-            final List<MemberName> bComponents = MemberName.fromRecordComponents(modified.recordComponents);
-            if (!aComponents.equals(bComponents)) {
-                output.visitRecordComponents(DiffUtils.diff(aComponents, bComponents));
-            }
-            if (!bComponents.isEmpty()) {
-                final Map<MemberName, RecordComponentNode> bMap = new LinkedHashMap<>();
-                for (int i = 0; i < bComponents.size(); i++) {
-                    bMap.put(bComponents.get(i), modified.recordComponents.get(i));
-                }
-
-                final Set<MemberName> extra = new LinkedHashSet<>(bMap.keySet());
-                for (int i = 0; i < aComponents.size(); i++) {
-                    final MemberName name = aComponents.get(i);
-                    if (extra.remove(name)) {
-                        final RecordComponentNode aNode = original.recordComponents.get(i);
-                        final RecordComponentNode bNode = bMap.get(name);
-                        if (!Equalizers.recordComponent(aNode, bNode)) {
-                            final RecordComponentDiffVisitor visitor = output.visitRecordComponent(
-                                name.name, name.descriptor, bNode.signature
-                            );
-                            if (visitor != null) {
-                                diffRecordComponents(aNode, bNode, visitor);
-                            }
-                        }
-                    }
-                }
-
-                for (final MemberName name : extra) {
-                    final RecordComponentNode node = bMap.get(name);
-                    final RecordComponentDiffVisitor visitor = output.visitRecordComponent(
-                        name.name, name.descriptor, node.signature
-                    );
-                    if (visitor != null) {
-                        if (node.visibleAnnotations != null) {
-                            visitor.visitAnnotations(DiffUtils.diff(
-                                Collections.emptyList(), node.visibleAnnotations, Equalizers::annotation
-                            ), true);
-                        }
-                        if (node.invisibleAnnotations != null) {
-                            visitor.visitAnnotations(DiffUtils.diff(
-                                Collections.emptyList(), node.invisibleAnnotations, Equalizers::annotation
-                            ), false);
-                        }
-                        if (node.visibleTypeAnnotations != null) {
-                            visitor.visitTypeAnnotations(DiffUtils.diff(
-                                Collections.emptyList(), node.visibleTypeAnnotations, Equalizers::typeAnnotation
-                            ), true);
-                        }
-                        if (node.invisibleTypeAnnotations != null) {
-                            visitor.visitTypeAnnotations(DiffUtils.diff(
-                                Collections.emptyList(), node.invisibleTypeAnnotations, Equalizers::typeAnnotation
-                            ), false);
-                        }
-                        visitor.visitEnd();
-                    }
-                }
-            }
-        }
+        diffRecordComponents(original, modified);
 
         if (!Equalizers.module(original.module, modified.module)) {
-            if (modified.module == null) {
-                final ModuleDiffVisitor moduleOut = output.visitModule(null, 0, null);
-                if (moduleOut != null) {
-                    moduleOut.visitEnd();
-                }
-            } else {
-                ModuleNode aModule = original.module;
-                if (aModule == null) {
-                    aModule = new ModuleNode("", 0, null);
-                }
-                final ModuleNode bModule = modified.module;
-
-                final ModuleDiffVisitor moduleOut = output.visitModule(bModule.name, bModule.access, bModule.version);
-                if (moduleOut != null) {
-                    if (!Objects.equals(aModule.mainClass, bModule.mainClass)) {
-                        moduleOut.visitMainClass(bModule.mainClass);
-                    }
-
-                    if (!Objects.equals(aModule.packages, bModule.packages)) {
-                        moduleOut.visitPackages(DiffUtils.diff(
-                            aModule.packages != null ? aModule.packages : Collections.emptyList(),
-                            bModule.packages != null ? bModule.packages : Collections.emptyList()
-                        ));
-                    }
-
-                    if (!Equalizers.listEquals(aModule.requires, bModule.requires, Equalizers::moduleRequire)) {
-                        moduleOut.visitRequires(DiffUtils.diff(
-                            aModule.requires != null ? aModule.requires : Collections.emptyList(),
-                            bModule.requires != null ? bModule.requires : Collections.emptyList(),
-                            Equalizers::moduleRequire
-                        ));
-                    }
-
-                    if (!Equalizers.listEquals(aModule.exports, bModule.exports, Equalizers::moduleExport)) {
-                        moduleOut.visitExports(DiffUtils.diff(
-                            aModule.exports != null ? aModule.exports : Collections.emptyList(),
-                            bModule.exports != null ? bModule.exports : Collections.emptyList(),
-                            Equalizers::moduleExport
-                        ));
-                    }
-
-                    if (!Equalizers.listEquals(aModule.opens, bModule.opens, Equalizers::moduleOpen)) {
-                        moduleOut.visitOpens(DiffUtils.diff(
-                            aModule.opens != null ? aModule.opens : Collections.emptyList(),
-                            bModule.opens != null ? bModule.opens : Collections.emptyList(),
-                            Equalizers::moduleOpen
-                        ));
-                    }
-
-                    if (!Objects.equals(aModule.packages, bModule.packages)) {
-                        moduleOut.visitUses(DiffUtils.diff(
-                            aModule.uses != null ? aModule.uses : Collections.emptyList(),
-                            bModule.uses != null ? bModule.uses : Collections.emptyList()
-                        ));
-                    }
-
-                    if (!Equalizers.listEquals(aModule.provides, bModule.provides, Equalizers::moduleProvide)) {
-                        moduleOut.visitProvides(DiffUtils.diff(
-                            aModule.provides != null ? aModule.provides : Collections.emptyList(),
-                            bModule.provides != null ? bModule.provides : Collections.emptyList(),
-                            Equalizers::moduleProvide
-                        ));
-                    }
-
-                    moduleOut.visitEnd();
-                }
-            }
+            diffModules(original.module, modified.module);
         }
 
         diffAttributable(output, original.attrs, modified.attrs);
 
+        diffFields(original, modified);
+
         output.visitEnd();
+    }
+
+    private void diffRecordComponents(ClassNode original, ClassNode modified) {
+        final List<MemberName> aComponents = MemberName.fromRecordComponents(original.recordComponents);
+        final List<MemberName> bComponents = MemberName.fromRecordComponents(modified.recordComponents);
+        if (!aComponents.equals(bComponents)) {
+            output.visitRecordComponents(DiffUtils.diff(aComponents, bComponents));
+        }
+        if (!bComponents.isEmpty()) {
+            final Map<MemberName, RecordComponentNode> bMap = new LinkedHashMap<>();
+            for (int i = 0; i < bComponents.size(); i++) {
+                bMap.put(bComponents.get(i), modified.recordComponents.get(i));
+            }
+
+            final Set<MemberName> extra = new LinkedHashSet<>(bMap.keySet());
+            for (int i = 0; i < aComponents.size(); i++) {
+                final MemberName name = aComponents.get(i);
+                if (extra.remove(name)) {
+                    final RecordComponentNode aNode = original.recordComponents.get(i);
+                    final RecordComponentNode bNode = bMap.get(name);
+                    if (!Equalizers.recordComponent(aNode, bNode)) {
+                        final RecordComponentDiffVisitor visitor = output.visitRecordComponent(
+                            name.name, name.descriptor, bNode.signature
+                        );
+                        if (visitor != null) {
+                            diffRecordComponents(aNode, bNode, visitor);
+                        }
+                    }
+                }
+            }
+
+            for (final MemberName name : extra) {
+                final RecordComponentNode node = bMap.get(name);
+                final RecordComponentDiffVisitor visitor = output.visitRecordComponent(
+                    name.name, name.descriptor, node.signature
+                );
+                if (visitor != null) {
+                    if (node.visibleAnnotations != null) {
+                        visitor.visitAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.visibleAnnotations, Equalizers::annotation
+                        ), true);
+                    }
+                    if (node.invisibleAnnotations != null) {
+                        visitor.visitAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.invisibleAnnotations, Equalizers::annotation
+                        ), false);
+                    }
+                    if (node.visibleTypeAnnotations != null) {
+                        visitor.visitTypeAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.visibleTypeAnnotations, Equalizers::typeAnnotation
+                        ), true);
+                    }
+                    if (node.invisibleTypeAnnotations != null) {
+                        visitor.visitTypeAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.invisibleTypeAnnotations, Equalizers::typeAnnotation
+                        ), false);
+                    }
+                    visitor.visitEnd();
+                }
+            }
+        }
     }
 
     private void diffRecordComponents(
         RecordComponentNode original,
         RecordComponentNode modified,
         RecordComponentDiffVisitor output
+    ) {
+        diffAnnotated(
+            output,
+            original.visibleAnnotations, modified.visibleAnnotations,
+            original.invisibleAnnotations, modified.invisibleAnnotations,
+            original.visibleTypeAnnotations, modified.visibleTypeAnnotations,
+            original.invisibleTypeAnnotations, modified.invisibleTypeAnnotations
+        );
+
+        diffAttributable(output, original.attrs, modified.attrs);
+
+        output.visitEnd();
+    }
+
+    private void diffModules(ModuleNode aModule, ModuleNode bModule) {
+        if (bModule == null) {
+            final ModuleDiffVisitor moduleOut = output.visitModule(null, 0, null);
+            if (moduleOut != null) {
+                moduleOut.visitEnd();
+            }
+            return;
+        }
+
+        if (aModule == null) {
+            aModule = new ModuleNode("", 0, null);
+        }
+
+        final ModuleDiffVisitor moduleOut = output.visitModule(bModule.name, bModule.access, bModule.version);
+        if (moduleOut != null) {
+            if (!Objects.equals(aModule.mainClass, bModule.mainClass)) {
+                moduleOut.visitMainClass(bModule.mainClass);
+            }
+
+            if (!Objects.equals(aModule.packages, bModule.packages)) {
+                moduleOut.visitPackages(DiffUtils.diff(
+                    aModule.packages != null ? aModule.packages : Collections.emptyList(),
+                    bModule.packages != null ? bModule.packages : Collections.emptyList()
+                ));
+            }
+
+            if (!Equalizers.listEquals(aModule.requires, bModule.requires, Equalizers::moduleRequire)) {
+                moduleOut.visitRequires(DiffUtils.diff(
+                    aModule.requires != null ? aModule.requires : Collections.emptyList(),
+                    bModule.requires != null ? bModule.requires : Collections.emptyList(),
+                    Equalizers::moduleRequire
+                ));
+            }
+
+            if (!Equalizers.listEquals(aModule.exports, bModule.exports, Equalizers::moduleExport)) {
+                moduleOut.visitExports(DiffUtils.diff(
+                    aModule.exports != null ? aModule.exports : Collections.emptyList(),
+                    bModule.exports != null ? bModule.exports : Collections.emptyList(),
+                    Equalizers::moduleExport
+                ));
+            }
+
+            if (!Equalizers.listEquals(aModule.opens, bModule.opens, Equalizers::moduleOpen)) {
+                moduleOut.visitOpens(DiffUtils.diff(
+                    aModule.opens != null ? aModule.opens : Collections.emptyList(),
+                    bModule.opens != null ? bModule.opens : Collections.emptyList(),
+                    Equalizers::moduleOpen
+                ));
+            }
+
+            if (!Objects.equals(aModule.packages, bModule.packages)) {
+                moduleOut.visitUses(DiffUtils.diff(
+                    aModule.uses != null ? aModule.uses : Collections.emptyList(),
+                    bModule.uses != null ? bModule.uses : Collections.emptyList()
+                ));
+            }
+
+            if (!Equalizers.listEquals(aModule.provides, bModule.provides, Equalizers::moduleProvide)) {
+                moduleOut.visitProvides(DiffUtils.diff(
+                    aModule.provides != null ? aModule.provides : Collections.emptyList(),
+                    bModule.provides != null ? bModule.provides : Collections.emptyList(),
+                    Equalizers::moduleProvide
+                ));
+            }
+
+            moduleOut.visitEnd();
+        }
+    }
+
+    private void diffFields(ClassNode original, ClassNode modified) {
+        final List<MemberName> aFields = MemberName.fromFields(original.fields);
+        final List<MemberName> bFields = MemberName.fromFields(modified.fields);
+        if (!aFields.equals(bFields)) {
+            output.visitFields(DiffUtils.diff(aFields, bFields));
+        }
+        if (!bFields.isEmpty()) {
+            final Map<MemberName, FieldNode> bMap = new LinkedHashMap<>();
+            for (int i = 0; i < bFields.size(); i++) {
+                bMap.put(bFields.get(i), modified.fields.get(i));
+            }
+
+            final Set<MemberName> extra = new LinkedHashSet<>(bMap.keySet());
+            for (int i = 0; i < aFields.size(); i++) {
+                final MemberName name = aFields.get(i);
+                if (extra.remove(name)) {
+                    final FieldNode aNode = original.fields.get(i);
+                    final FieldNode bNode = bMap.get(name);
+                    if (!Equalizers.field(aNode, bNode)) {
+                        final FieldDiffVisitor visitor = output.visitField(
+                            bNode.access, name.name, name.descriptor, bNode.signature, bNode.value
+                        );
+                        if (visitor != null) {
+                            diffFields(aNode, bNode, visitor);
+                        }
+                    }
+                }
+            }
+
+            for (final MemberName name : extra) {
+                final FieldNode node = bMap.get(name);
+                final FieldDiffVisitor visitor = output.visitField(
+                    node.access, name.name, name.descriptor, node.signature, node.value
+                );
+                if (visitor != null) {
+                    if (node.visibleAnnotations != null) {
+                        visitor.visitAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.visibleAnnotations, Equalizers::annotation
+                        ), true);
+                    }
+                    if (node.invisibleAnnotations != null) {
+                        visitor.visitAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.invisibleAnnotations, Equalizers::annotation
+                        ), false);
+                    }
+                    if (node.visibleTypeAnnotations != null) {
+                        visitor.visitTypeAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.visibleTypeAnnotations, Equalizers::typeAnnotation
+                        ), true);
+                    }
+                    if (node.invisibleTypeAnnotations != null) {
+                        visitor.visitTypeAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.invisibleTypeAnnotations, Equalizers::typeAnnotation
+                        ), false);
+                    }
+                    visitor.visitEnd();
+                }
+            }
+        }
+    }
+
+    private void diffFields(
+        FieldNode original,
+        FieldNode modified,
+        FieldDiffVisitor output
     ) {
         diffAnnotated(
             output,

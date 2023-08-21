@@ -7,7 +7,7 @@ import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.InnerClassNode;
 import org.objectweb.asm.tree.TypeAnnotationNode;
 
-public class DiffVisitor implements AnnotatedElementVisitor, CustomAttributableVisitor {
+public abstract class DiffVisitor implements AnnotatedElementVisitor, CustomAttributableVisitor {
     @Nullable
     private final DiffVisitor delegate;
 

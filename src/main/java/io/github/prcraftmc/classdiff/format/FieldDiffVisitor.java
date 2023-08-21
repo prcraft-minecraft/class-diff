@@ -5,7 +5,7 @@ import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.TypeAnnotationNode;
 
-public class FieldDiffVisitor implements AnnotatedElementVisitor, CustomAttributableVisitor {
+public abstract class FieldDiffVisitor implements AnnotatedElementVisitor, CustomAttributableVisitor {
     @Nullable
     private final FieldDiffVisitor delegate;
 

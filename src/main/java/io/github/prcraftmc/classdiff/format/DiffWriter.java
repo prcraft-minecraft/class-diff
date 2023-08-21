@@ -66,6 +66,9 @@ public class DiffWriter extends DiffVisitor {
 
     private ByteVector module;
 
+    private ByteVector fieldsPatch;
+    private final List<ByteVector> fields = new ArrayList<>();
+
     private final Map<Integer, byte @Nullable []> customAttributes = new LinkedHashMap<>();
 
     public DiffWriter() {
@@ -198,6 +201,7 @@ public class DiffWriter extends DiffVisitor {
         vector.putShort(symbolTable.addConstantUtf8(name));
         vector.putShort(symbolTable.addConstantUtf8(descriptor));
         vector.putShort(signature != null ? symbolTable.addConstantUtf8(signature) : 0);
+
         vector.putShort(0);
         return new RecordComponentDiffVisitor(delegate) {
             final int countIndex = vector.size() - 2;
@@ -260,6 +264,7 @@ public class DiffWriter extends DiffVisitor {
                 data[index + 1] = (byte)(size >> 16);
                 data[index + 2] = (byte)(size >> 8);
                 data[index + 3] = (byte)size;
+                attributeCount++;
             }
         };
     }
@@ -414,6 +419,93 @@ public class DiffWriter extends DiffVisitor {
         customAttributes.put(symbolTable.addConstantUtf8("Custom" + name), patchOrContents);
     }
 
+    @Override
+    public void visitFields(Patch<MemberName> patch) {
+        super.visitFields(patch);
+
+        memberNamePatchWriter.write(fieldsPatch = new ByteVector(), patch);
+    }
+
+    @Override
+    public FieldDiffVisitor visitField(int access, String name, String descriptor, @Nullable String signature, @Nullable Object value) {
+        final FieldDiffVisitor delegate = super.visitField(access, name, descriptor, signature, value);
+
+        final ByteVector vector = new ByteVector();
+        fields.add(vector);
+
+        vector.putInt(access);
+        vector.putShort(symbolTable.addConstantUtf8(name));
+        vector.putShort(symbolTable.addConstantUtf8(descriptor));
+        vector.putShort(signature != null ? symbolTable.addConstantUtf8(signature) : 0);
+        vector.putShort(value != null ? symbolTable.addConstant(value).index : 0);
+
+        vector.putShort(0);
+        return new FieldDiffVisitor(delegate) {
+            final int countIndex = vector.size() - 2;
+            int sizeIndex;
+            int attributeCount;
+
+            @Override
+            public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
+                super.visitAnnotations(patch, visible);
+
+                preAttr((visible ? "Visible" : "Invisible") + "Annotations");
+                annotationPatchWriter.write(vector, patch);
+                postAttr();
+            }
+
+            @Override
+            public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
+                super.visitTypeAnnotations(patch, visible);
+
+                preAttr((visible ? "Visible" : "Invisible") + "TypeAnnotations");
+                typeAnnotationPatchWriter.write(vector, patch);
+                postAttr();
+            }
+
+            @Override
+            public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
+                super.visitCustomAttribute(name, patchOrContents);
+
+                vector.putShort(symbolTable.addConstantUtf8("Custom" + name));
+                if (patchOrContents == null) {
+                    vector.putInt(1).putByte(0);
+                } else {
+                    vector.putInt(patchOrContents.length + 1)
+                        .putByte(1)
+                        .putByteArray(patchOrContents, 0, patchOrContents.length);
+                }
+                attributeCount++;
+            }
+
+            @Override
+            public void visitEnd() {
+                super.visitEnd();
+
+                final byte[] data = ReflectUtils.getByteVectorData(vector);
+                data[countIndex] = (byte)(attributeCount >> 8);
+                data[countIndex + 1] = (byte)attributeCount;
+            }
+
+            private void preAttr(String name) {
+                vector.putShort(symbolTable.addConstantUtf8(name));
+                sizeIndex = vector.size();
+                vector.putInt(0);
+            }
+
+            private void postAttr() {
+                final byte[] data = ReflectUtils.getByteVectorData(vector);
+                final int index = sizeIndex;
+                final int size = vector.size() - sizeIndex - 4;
+                data[index] = (byte)(size >>> 24);
+                data[index + 1] = (byte)(size >> 16);
+                data[index + 2] = (byte)(size >> 8);
+                data[index + 3] = (byte)size;
+                attributeCount++;
+            }
+        };
+    }
+
     public byte[] toByteArray() {
         final ByteVector result = new ByteVector();
 
@@ -561,6 +653,16 @@ public class DiffWriter extends DiffVisitor {
                     .putByte(1)
                     .putByteArray(value, 0, value.length);
             }
+        }
+
+        if (fieldsPatch != null) {
+            result.putByteArray(ReflectUtils.getByteVectorData(fieldsPatch), 0, fieldsPatch.size());
+        } else {
+            result.putShort(0);
+        }
+        result.putShort(fields.size());
+        for (final ByteVector field : fields) {
+            result.putByteArray(ReflectUtils.getByteVectorData(field), 0, field.size());
         }
 
         return Arrays.copyOf(ReflectUtils.getByteVectorData(result), result.size());

@@ -3,10 +3,7 @@ package io.github.prcraftmc.classdiff;
 import com.github.difflib.patch.Patch;
 import com.github.difflib.patch.PatchFailedException;
 import com.nothome.delta.GDiffPatcher;
-import io.github.prcraftmc.classdiff.format.DiffReader;
-import io.github.prcraftmc.classdiff.format.DiffVisitor;
-import io.github.prcraftmc.classdiff.format.ModuleDiffVisitor;
-import io.github.prcraftmc.classdiff.format.RecordComponentDiffVisitor;
+import io.github.prcraftmc.classdiff.format.*;
 import io.github.prcraftmc.classdiff.util.MemberName;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.jetbrains.annotations.Nullable;
@@ -209,7 +206,7 @@ public class ClassPatcher extends DiffVisitor {
     @Override
     public RecordComponentDiffVisitor visitRecordComponent(String name, String descriptor, @Nullable String signature) {
         if (node.recordComponents == null) {
-            return null;
+            node.recordComponents = new ArrayList<>();
         }
 
         RecordComponentNode recordNode = null;
@@ -408,5 +405,122 @@ public class ClassPatcher extends DiffVisitor {
         final Attribute attr = ReflectUtils.newAttribute(name);
         ReflectUtils.setAttributeContent(attr, patchOrContents);
         node.attrs.add(attr);
+    }
+
+    @Override
+    public void visitFields(Patch<MemberName> patch) {
+        final List<MemberName> originalList = MemberName.fromFields(node.fields);
+        final List<MemberName> modifiedList;
+        try {
+            modifiedList = patch.applyTo(originalList);
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
+        }
+
+        final Map<MemberName, FieldNode> originalMap = new HashMap<>();
+        for (int i = 0; i < originalList.size(); i++) {
+            originalMap.put(originalList.get(i), node.fields.get(i));
+        }
+
+        node.fields = new ArrayList<>();
+        for (final MemberName name : modifiedList) {
+            FieldNode fieldNode = originalMap.get(name);
+            if (fieldNode == null) {
+                fieldNode = new FieldNode(0, name.name, name.descriptor, null, null);
+            }
+            node.fields.add(fieldNode);
+        }
+    }
+
+    @Nullable
+    @Override
+    public FieldDiffVisitor visitField(
+        int access,
+        String name,
+        String descriptor,
+        @Nullable String signature,
+        @Nullable Object value
+    ) {
+        if (node.fields == null) {
+            node.fields = new ArrayList<>();
+        }
+
+        FieldNode fieldNode = null;
+        for (final FieldNode test : node.fields) {
+            if (test.name.equals(name) && test.desc.equals(descriptor)) {
+                fieldNode = test;
+                break;
+            }
+        }
+        if (fieldNode == null) {
+            fieldNode = new FieldNode(access, name, descriptor, signature, value);
+            node.fields.add(fieldNode);
+        }
+
+        fieldNode.signature = signature;
+        final FieldNode fFieldNode = fieldNode;
+        return new FieldDiffVisitor() {
+            @Override
+            public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
+                try {
+                    if (visible) {
+                        if (fFieldNode.visibleAnnotations == null) {
+                            fFieldNode.visibleAnnotations = Collections.emptyList();
+                        }
+                        fFieldNode.visibleAnnotations = patch.applyTo(fFieldNode.visibleAnnotations);
+                    } else {
+                        if (fFieldNode.invisibleAnnotations == null) {
+                            fFieldNode.invisibleAnnotations = Collections.emptyList();
+                        }
+                        fFieldNode.invisibleAnnotations = patch.applyTo(fFieldNode.invisibleAnnotations);
+                    }
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
+                try {
+                    if (visible) {
+                        if (fFieldNode.visibleTypeAnnotations == null) {
+                            fFieldNode.visibleTypeAnnotations = Collections.emptyList();
+                        }
+                        fFieldNode.visibleTypeAnnotations = patch.applyTo(fFieldNode.visibleTypeAnnotations);
+                    } else {
+                        if (fFieldNode.invisibleTypeAnnotations == null) {
+                            fFieldNode.invisibleTypeAnnotations = Collections.emptyList();
+                        }
+                        fFieldNode.invisibleTypeAnnotations = patch.applyTo(fFieldNode.invisibleTypeAnnotations);
+                    }
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
+                if (patchOrContents == null) {
+                    fFieldNode.attrs.removeIf(attr -> attr.type.equals(name));
+                    return;
+                }
+                for (final Attribute attr : fFieldNode.attrs) {
+                    if (attr.type.equals(name)) {
+                        final byte[] original = ReflectUtils.getAttributeContent(attr);
+                        final byte[] patched;
+                        try {
+                            patched = bytePatcher.patch(original, patchOrContents);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        ReflectUtils.setAttributeContent(attr, patched);
+                        return;
+                    }
+                }
+                final Attribute attr = ReflectUtils.newAttribute(name);
+                ReflectUtils.setAttributeContent(attr, patchOrContents);
+                fFieldNode.attrs.add(attr);
+            }
+        };
     }
 }
