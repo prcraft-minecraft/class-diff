@@ -144,18 +144,17 @@ public class DiffReader {
     public void accept(DiffVisitor visitor, ClassNode node) {
         context.set(new Context());
 
-        int readPos;
+        final ByteReader reader = new ByteReader(contents, startPos + 14);
+
         final Patch<String> interfacePatch;
         {
-            if (readShort(startPos + 14) == 0) {
+            if (reader.readShort() == 0) {
                 interfacePatch = null;
-                readPos = startPos + 16;
             } else {
-                final ByteReader byteReader = new ByteReader(contents, startPos + 14);
+                reader.skip(-2);
                 interfacePatch = classPatchReader.readPatch(
-                    byteReader, node.interfaces != null ? node.interfaces : Collections.emptyList()
+                    reader, node.interfaces != null ? node.interfaces : Collections.emptyList()
                 );
-                readPos = byteReader.pointer();
             }
         }
 
@@ -169,105 +168,108 @@ public class DiffReader {
             interfacePatch
         );
 
-        final int attributeCount = readShort(readPos);
-        readPos += 2;
+        final int attributeCount = reader.readShort();
         for (int i = 0; i < attributeCount; i++) {
-            final String attributeName = readUtf8(readPos);
+            final String attributeName = readUtf8(reader.pointer());
             if (attributeName == null) {
-                throw new IllegalArgumentException("Null attribute name at address " + Integer.toHexString(readPos));
+                throw new IllegalArgumentException("Null attribute name at address " + Integer.toHexString(reader.pointer()));
             }
-            final int attributeLength = readInt(readPos + 2);
-            readPos += 6;
+            reader.skip(2);
+            final int attributeLength = reader.readInt();
+            final int endPos = reader.pointer() + attributeLength;
             switch (attributeName) {
                 case "Source":
-                    visitor.visitSource(readUtf8(readPos), readUtf8(readPos + 2));
+                    visitor.visitSource(readUtf8(reader.pointer()), readUtf8(reader.pointer() + 2));
                     break;
                 case "InnerClasses":
-                    visitor.visitInnerClasses(new PatchReader<>(reader -> {
-                        reader.skip(6);
+                    visitor.visitInnerClasses(new PatchReader<>(reader1 -> {
+                        reader1.skip(6);
                         return new InnerClassNode(
-                            readClass(reader.pointer() - 6),
-                            readClass(reader.pointer() - 4),
-                            readUtf8(reader.pointer() - 2),
-                            reader.readShort()
+                            readClass(reader1.pointer() - 6),
+                            readClass(reader1.pointer() - 4),
+                            readUtf8(reader1.pointer() - 2),
+                            reader1.readShort()
                         );
                     }).readPatch(
-                        new ByteReader(contents, readPos),
+                        reader,
                         node.innerClasses != null ? node.innerClasses : Collections.emptyList()
                     ));
                     break;
                 case "OuterClasses":
-                    visitor.visitOuterClass(readClass(readPos), readClass(readPos + 2), readClass(readPos + 4));
+                    visitor.visitOuterClass(
+                        readClass(reader.pointer()),
+                        readClass(reader.pointer() + 2),
+                        readClass(reader.pointer() + 4)
+                    );
                     break;
                 case "NestHost":
-                    visitor.visitNestHost(readClass(readPos));
+                    visitor.visitNestHost(readClass(reader.pointer()));
                     break;
                 case "NestMembers":
                     visitor.visitNestMembers(classPatchReader.readPatch(
-                        new ByteReader(contents, readPos),
+                        reader,
                         node.nestMembers != null ? node.nestMembers : Collections.emptyList()
                     ));
                     break;
                 case "PermittedSubclasses":
                     visitor.visitPermittedSubclasses(classPatchReader.readPatch(
-                        new ByteReader(contents, readPos),
+                        reader,
                         node.permittedSubclasses != null ? node.permittedSubclasses : Collections.emptyList()
                     ));
                     break;
                 case "VisibleAnnotations":
                     visitor.visitAnnotations(annotationPatchReader.readPatch(
-                        new ByteReader(contents, readPos),
+                        reader,
                         node.visibleAnnotations != null ? node.visibleAnnotations : Collections.emptyList()
                     ), true);
                     break;
                 case "InvisibleAnnotations":
                     visitor.visitAnnotations(annotationPatchReader.readPatch(
-                        new ByteReader(contents, readPos),
+                        reader,
                         node.invisibleAnnotations != null ? node.invisibleAnnotations : Collections.emptyList()
                     ), false);
                     break;
                 case "VisibleTypeAnnotations":
                     visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
-                        new ByteReader(contents, readPos),
+                        reader,
                         node.visibleTypeAnnotations != null ? node.visibleTypeAnnotations : Collections.emptyList()
                     ), true);
                     break;
                 case "InvisibleTypeAnnotations":
                     visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
-                        new ByteReader(contents, readPos),
+                        reader,
                         node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
                     ), false);
                     break;
-                case "RecordComponents": {
-                    final ByteReader reader = new ByteReader(contents, readPos);
+                case "RecordComponents":
                     visitor.visitRecordComponents(memberNamePatchReader.readPatch(
                         reader, node.recordComponents != null
                             ? MemberName.fromRecordComponents(node.recordComponents) : Collections.emptyList()
                     ));
                     for (int j = 0, l = reader.readShort(); j < l; j++) {
-                        reader.pointer(readRecordComponent(reader.pointer(), visitor, node));
+                        readRecordComponent(reader, visitor, node);
                     }
                     break;
-                }
                 case "Module": {
-                    final String name = readModule(readPos);
-                    final int access = readShort(readPos + 2);
-                    final String version = readUtf8(readPos + 4);
+                    final String name = readModule(reader.pointer());
+                    final int access = readShort(reader.pointer() + 2);
+                    final String version = readUtf8(reader.pointer() + 4);
+                    reader.skip(6);
                     if (name != null) {
                         ModuleNode moduleNode = node.module;
                         if (moduleNode == null) {
                             moduleNode = new ModuleNode(name, access, version); // Temporary
                         }
-                        readModule(readPos + 6, visitor.visitModule(name, access, version), moduleNode);
+                        readModule(reader, visitor.visitModule(name, access, version), moduleNode);
                     }
                     break;
                 }
                 default:
                     if (attributeName.startsWith("Custom")) {
-                        if (contents[readPos] != 0) {
+                        if (reader.readByte() != 0) {
                             visitor.visitCustomAttribute(
                                 attributeName.substring(6),
-                                Arrays.copyOfRange(contents, readPos + 1, readPos + attributeLength)
+                                Arrays.copyOfRange(contents, reader.pointer() + 1, reader.pointer() + attributeLength)
                             );
                         } else {
                             visitor.visitCustomAttribute(attributeName.substring(6), null);
@@ -275,28 +277,38 @@ public class DiffReader {
                     }
                     break;
             }
-            readPos += attributeLength;
+            reader.pointer(endPos);
         }
+
+//        visitor.visitFields(memberNamePatchReader.readPatch(
+//            reader,
+//            node.fields != null ? MemberName.fromFields(node.fields) : Collections.emptyList()
+//        ));
+//        for (int i = 0, l = reader.readShort(); i < l; i++) {
+//        }
 
         context.remove();
         visitor.visitEnd();
     }
 
-    private void readModule(int currentOffset, ModuleDiffVisitor visitor, ModuleNode node) {
+//    private int readField() {
+//    }
+
+    private void readModule(ByteReader reader, ModuleDiffVisitor visitor, ModuleNode node) {
         if (visitor == null) return;
 
-        final ByteReader reader = new ByteReader(contents);
-
-        final int attrCount = readShort(currentOffset);
-        currentOffset += 2;
+        final int attrCount = reader.readShort();
         for (int i = 0; i < attrCount; i++) {
-            final String attrName = readUtf8(currentOffset);
-            final int attrLen = readInt(currentOffset + 2);
-            currentOffset += 6;
-            reader.pointer(currentOffset);
+            final String attrName = readUtf8(reader.pointer());
+            if (attrName == null) {
+                throw new IllegalArgumentException("Null attribute name at address " + Integer.toHexString(reader.pointer()));
+            }
+            reader.skip(2);
+            final int attrLen = reader.readInt();
+            final int endPos = reader.pointer() + attrLen;
             switch (attrName) {
                 case "MainClass":
-                    visitor.visitMainClass(readClass(currentOffset));
+                    visitor.visitMainClass(readClass(reader.pointer()));
                     break;
                 case "Packages":
                     visitor.visitPackages(packagePatchReader.readPatch(
@@ -355,16 +367,17 @@ public class DiffReader {
                     }).readPatch(reader, node.provides != null ? node.provides : Collections.emptyList()));
                     break;
             }
-            currentOffset += attrLen;
+            reader.pointer(endPos);
         }
 
         visitor.visitEnd();
     }
 
-    private int readRecordComponent(int currentOffset, DiffVisitor diffVisitor, ClassNode classNode) {
-        final String name = readUtf8(currentOffset);
-        final String descriptor = readUtf8(currentOffset + 2);
-        final String signature = readUtf8(currentOffset + 4);
+    private void readRecordComponent(ByteReader reader, DiffVisitor diffVisitor, ClassNode classNode) {
+        final String name = readUtf8(reader.pointer());
+        final String descriptor = readUtf8(reader.pointer() + 2);
+        final String signature = readUtf8(reader.pointer() + 4);
+        reader.skip(6);
 
         final RecordComponentDiffVisitor visitor = diffVisitor.visitRecordComponent(name, descriptor, signature);
 
@@ -381,45 +394,48 @@ public class DiffReader {
             node = new RecordComponentNode(name, descriptor, signature);
         }
 
-        final int attributeCount = readShort(currentOffset + 6);
+        final int attributeCount = reader.readShort();
 
-        currentOffset += 8;
         for (int i = 0; i < attributeCount; i++) {
-            final int attrLength = readInt(currentOffset + 2);
-            currentOffset += 6;
+            reader.skip(2);
+            final int attrLength = reader.readInt();
+            final int endPos = reader.pointer() + attrLength;
             if (visitor != null) {
-                final String attrName = readUtf8(currentOffset - 6);
+                final String attrName = readUtf8(reader.pointer() - 6);
+                if (attrName == null) {
+                    throw new IllegalArgumentException("Null attribute name at address " + Integer.toHexString(reader.pointer() - 6));
+                }
                 switch (attrName) {
                     case "VisibleAnnotations":
                         visitor.visitAnnotations(annotationPatchReader.readPatch(
-                            new ByteReader(contents, currentOffset),
+                            reader,
                             node.visibleAnnotations != null ? node.visibleAnnotations : Collections.emptyList()
                         ), true);
                         break;
                     case "InvisibleAnnotations":
                         visitor.visitAnnotations(annotationPatchReader.readPatch(
-                            new ByteReader(contents, currentOffset),
+                            reader,
                             node.invisibleAnnotations != null ? node.invisibleAnnotations : Collections.emptyList()
                         ), false);
                         break;
                     case "VisibleTypeAnnotations":
                         visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
-                            new ByteReader(contents, currentOffset),
+                            reader,
                             node.visibleTypeAnnotations != null ? node.visibleTypeAnnotations : Collections.emptyList()
                         ), true);
                         break;
                     case "InvisibleTypeAnnotations":
                         visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
-                            new ByteReader(contents, currentOffset),
+                            reader,
                             node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
                         ), false);
                         break;
                     default:
                         if (attrName.startsWith("Custom")) {
-                            if (contents[currentOffset] != 0) {
+                            if (reader.readByte() != 0) {
                                 visitor.visitCustomAttribute(
                                     attrName.substring(6),
-                                    Arrays.copyOfRange(contents, currentOffset + 1, currentOffset + attrLength)
+                                    Arrays.copyOfRange(contents, reader.pointer() + 1, reader.pointer() + attrLength)
                                 );
                             } else {
                                 visitor.visitCustomAttribute(attrName.substring(6), null);
@@ -428,14 +444,12 @@ public class DiffReader {
                         break;
                 }
             }
-            currentOffset += attrLength;
+            reader.pointer(endPos);
         }
 
         if (visitor != null) {
             visitor.visitEnd();
         }
-
-        return currentOffset;
     }
 
     private int readInt(int offset) {

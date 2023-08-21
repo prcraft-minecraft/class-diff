@@ -1,5 +1,6 @@
 package io.github.prcraftmc.classdiff.util;
 
+import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.RecordComponentNode;
 
 import java.util.ArrayList;
@@ -40,6 +41,21 @@ public class MemberName {
         final List<MemberName> result = new ArrayList<>(nodes.size());
         for (final RecordComponentNode node : nodes) {
             result.add(fromRecordComponent(node));
+        }
+        return result;
+    }
+
+    public static MemberName fromField(FieldNode node) {
+        return new MemberName(node.name, node.desc);
+    }
+
+    public static List<MemberName> fromFields(List<FieldNode> nodes) {
+        if (nodes == null) {
+            return Collections.emptyList();
+        }
+        final List<MemberName> result = new ArrayList<>(nodes.size());
+        for (final FieldNode node : nodes) {
+            result.add(fromField(node));
         }
         return result;
     }

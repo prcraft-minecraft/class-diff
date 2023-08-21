@@ -220,7 +220,8 @@ public class ClassPatcher extends DiffVisitor {
             }
         }
         if (recordNode == null) {
-            return null;
+            recordNode = new RecordComponentNode(name, descriptor, signature);
+            node.recordComponents.add(recordNode);
         }
 
         recordNode.signature = signature;
@@ -262,6 +263,30 @@ public class ClassPatcher extends DiffVisitor {
                 } catch (PatchFailedException e) {
                     throw new UncheckedPatchFailure(e);
                 }
+            }
+
+            @Override
+            public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
+                if (patchOrContents == null) {
+                    fRecordNode.attrs.removeIf(attr -> attr.type.equals(name));
+                    return;
+                }
+                for (final Attribute attr : fRecordNode.attrs) {
+                    if (attr.type.equals(name)) {
+                        final byte[] original = ReflectUtils.getAttributeContent(attr);
+                        final byte[] patched;
+                        try {
+                            patched = bytePatcher.patch(original, patchOrContents);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        ReflectUtils.setAttributeContent(attr, patched);
+                        return;
+                    }
+                }
+                final Attribute attr = ReflectUtils.newAttribute(name);
+                ReflectUtils.setAttributeContent(attr, patchOrContents);
+                fRecordNode.attrs.add(attr);
             }
         };
     }

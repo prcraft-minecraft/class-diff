@@ -125,6 +125,26 @@ public class DiffVisitor implements AnnotatedElementVisitor, CustomAttributableV
         }
     }
 
+    public void visitFields(Patch<MemberName> patch) {
+        if (delegate != null) {
+            delegate.visitFields(patch);
+        }
+    }
+
+    @Nullable
+    public FieldDiffVisitor visitField(
+        int access,
+        String name,
+        String descriptor,
+        @Nullable String signature,
+        @Nullable Object value
+    ) {
+        if (delegate != null) {
+            return delegate.visitField(access, name, descriptor, signature, value);
+        }
+        return null;
+    }
+
     public void visitEnd() {
         if (delegate != null) {
             delegate.visitEnd();
