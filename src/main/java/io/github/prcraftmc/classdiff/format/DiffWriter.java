@@ -624,6 +624,7 @@ public class DiffWriter extends DiffVisitor {
 
                 vector.putShort(symbolTable.addConstantUtf8("Maxs")).putInt(4);
                 vector.putShort(maxStack).putShort(maxLocals);
+                attributeCount++;
             }
 
             @Override

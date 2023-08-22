@@ -267,7 +267,7 @@ public class DiffReader {
                         if (reader.readByte() != 0) {
                             visitor.visitCustomAttribute(
                                 attributeName.substring(6),
-                                Arrays.copyOfRange(contents, reader.pointer() + 1, reader.pointer() + attributeLength)
+                                Arrays.copyOfRange(contents, reader.pointer(), reader.pointer() + attributeLength - 1)
                             );
                         } else {
                             visitor.visitCustomAttribute(attributeName.substring(6), null);
@@ -405,7 +405,7 @@ public class DiffReader {
                             if (reader.readByte() != 0) {
                                 visitor.visitCustomAttribute(
                                     attrName.substring(6),
-                                    Arrays.copyOfRange(contents, reader.pointer() + 1, reader.pointer() + attrLength)
+                                    Arrays.copyOfRange(contents, reader.pointer(), reader.pointer() + attrLength - 1)
                                 );
                             } else {
                                 visitor.visitCustomAttribute(attrName.substring(6), null);
@@ -485,7 +485,7 @@ public class DiffReader {
                             if (reader.readByte() != 0) {
                                 visitor.visitCustomAttribute(
                                     attrName.substring(6),
-                                    Arrays.copyOfRange(contents, reader.pointer() + 1, reader.pointer() + attrLength)
+                                    Arrays.copyOfRange(contents, reader.pointer(), reader.pointer() + attrLength - 1)
                                 );
                             } else {
                                 visitor.visitCustomAttribute(attrName.substring(6), null);
@@ -640,7 +640,7 @@ public class DiffReader {
                             if (reader.readByte() != 0) {
                                 visitor.visitCustomAttribute(
                                     attrName.substring(6),
-                                    Arrays.copyOfRange(contents, reader.pointer() + 1, reader.pointer() + attrLength)
+                                    Arrays.copyOfRange(contents, reader.pointer(), reader.pointer() + attrLength - 1)
                                 );
                             } else {
                                 visitor.visitCustomAttribute(attrName.substring(6), null);
