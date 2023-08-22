@@ -187,6 +187,11 @@ public class ClassDiffer {
                             Collections.emptyList(), node.invisibleTypeAnnotations, Equalizers::typeAnnotation
                         ), false);
                     }
+                    if (node.attrs != null) {
+                        for (final Attribute attr : node.attrs) {
+                            visitor.visitCustomAttribute(attr.type, ReflectUtils.getAttributeContent(attr));
+                        }
+                    }
                     visitor.visitEnd();
                 }
             }
@@ -335,6 +340,11 @@ public class ClassDiffer {
                             Collections.emptyList(), node.invisibleTypeAnnotations, Equalizers::typeAnnotation
                         ), false);
                     }
+                    if (node.attrs != null) {
+                        for (final Attribute attr : node.attrs) {
+                            visitor.visitCustomAttribute(attr.type, ReflectUtils.getAttributeContent(attr));
+                        }
+                    }
                     visitor.visitEnd();
                 }
             }
@@ -416,6 +426,46 @@ public class ClassDiffer {
                             Collections.emptyList(), node.invisibleTypeAnnotations, Equalizers::typeAnnotation
                         ), false);
                     }
+                    if (node.annotationDefault != null) {
+                        visitor.visitAnnotationDefault(node.annotationDefault);
+                    }
+                    if (node.visibleAnnotableParameterCount != 0 || node.visibleParameterAnnotations != null) {
+                        final int paramCount = Type.getArgumentTypes(node.desc).length;
+                        final List<Patch<AnnotationNode>> patches = new ArrayList<>(paramCount);
+                        for (int i = 0; i < paramCount; i++) {
+                            patches.add(DiffUtils.diff(
+                                Collections.emptyList(),
+                                Util.getListFromArray(node.visibleParameterAnnotations, i),
+                                Equalizers::annotation
+                            ));
+                        }
+                        visitor.visitParameterAnnotations(node.visibleAnnotableParameterCount, patches, true);
+                    }
+                    if (node.invisibleAnnotableParameterCount != 0 || node.invisibleParameterAnnotations != null) {
+                        final int paramCount = Type.getArgumentTypes(node.desc).length;
+                        final List<Patch<AnnotationNode>> patches = new ArrayList<>(paramCount);
+                        for (int i = 0; i < paramCount; i++) {
+                            patches.add(DiffUtils.diff(
+                                Collections.emptyList(),
+                                Util.getListFromArray(node.invisibleParameterAnnotations, i),
+                                Equalizers::annotation
+                            ));
+                        }
+                        visitor.visitParameterAnnotations(node.invisibleAnnotableParameterCount, patches, false);
+                    }
+                    if (node.parameters != null) {
+                        visitor.visitParameters(DiffUtils.diff(
+                            Collections.emptyList(), node.parameters, Equalizers::parameter
+                        ));
+                    }
+                    if (node.attrs != null) {
+                        for (final Attribute attr : node.attrs) {
+                            visitor.visitCustomAttribute(attr.type, ReflectUtils.getAttributeContent(attr));
+                        }
+                    }
+                    if (node.maxStack != 0 || node.maxLocals != 0) {
+                        visitor.visitMaxs(node.maxStack, node.maxLocals);
+                    }
                     visitor.visitEnd();
                 }
             }
@@ -455,7 +505,7 @@ public class ClassDiffer {
                     Equalizers::annotation
                 ));
             }
-            output.visitParameterAnnotations(modified.visibleAnnotableParameterCount, patches, false);
+            output.visitParameterAnnotations(modified.visibleAnnotableParameterCount, patches, true);
         }
 
         if (

@@ -1,4 +1,4 @@
-package test1;
+package io.github.prcraftmc.classdif.test.test1;
 
 public class Hello implements Runnable {
     public static void main(String[] args) {

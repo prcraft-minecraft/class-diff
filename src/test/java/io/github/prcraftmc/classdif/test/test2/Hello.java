@@ -1,4 +1,4 @@
-package test2;
+package io.github.prcraftmc.classdif.test.test2;
 
 public record Hello(String a, int b) {
     public static void main(String[] args) {

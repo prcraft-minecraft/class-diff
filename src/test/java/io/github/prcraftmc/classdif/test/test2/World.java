@@ -1,6 +1,6 @@
-package test2;
+package io.github.prcraftmc.classdif.test.test2;
 
-import test1.Test;
+import io.github.prcraftmc.classdif.test.test1.Test;
 
 public record World(String a, @Test.Inner float b) {
     public static void main(String[] args) {

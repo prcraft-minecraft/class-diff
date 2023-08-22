@@ -1,4 +1,4 @@
-package test5;
+package io.github.prcraftmc.classdif.test.test5;
 
 public class World {
     public static void test(@Test.Inner(42) final int a) {
