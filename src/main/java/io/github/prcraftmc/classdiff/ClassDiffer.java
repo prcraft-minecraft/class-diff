@@ -487,6 +487,10 @@ public class ClassDiffer {
 
         diffAttributable(output, original.attrs, modified.attrs);
 
+        if (modified.maxStack != original.maxStack || modified.maxLocals != original.maxLocals) {
+            output.visitMaxs(modified.maxStack, modified.maxLocals);
+        }
+
         output.visitEnd();
     }
 

@@ -64,6 +64,12 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
         }
     }
 
+    public void visitMaxs(int maxStack, int maxLocals) {
+        if (delegate != null) {
+            delegate.visitMaxs(maxStack, maxLocals);
+        }
+    }
+
     public void visitEnd() {
         if (delegate != null) {
             delegate.visitEnd();

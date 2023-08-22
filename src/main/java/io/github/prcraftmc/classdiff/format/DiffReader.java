@@ -397,6 +397,9 @@ public class DiffReader {
                             return new ParameterNode(readUtf8(reader1.pointer() - 2), reader1.readInt());
                         }).readPatch(reader, node.parameters != null ? node.parameters : Collections.emptyList()));
                         break;
+                    case "Maxs":
+                        visitor.visitMaxs(reader.readShort(), reader.readShort());
+                        break;
                     default:
                         if (attrName.startsWith("Custom")) {
                             if (reader.readByte() != 0) {

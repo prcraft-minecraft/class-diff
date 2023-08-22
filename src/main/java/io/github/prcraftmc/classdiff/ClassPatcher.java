@@ -698,6 +698,12 @@ public class ClassPatcher extends DiffVisitor {
                 ReflectUtils.setAttributeContent(attr, patchOrContents);
                 fMethodNode.attrs.add(attr);
             }
+
+            @Override
+            public void visitMaxs(int maxStack, int maxLocals) {
+                fMethodNode.maxStack = maxStack;
+                fMethodNode.maxLocals = maxLocals;
+            }
         };
     }
 }

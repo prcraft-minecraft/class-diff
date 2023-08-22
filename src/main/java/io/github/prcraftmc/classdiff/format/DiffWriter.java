@@ -619,6 +619,14 @@ public class DiffWriter extends DiffVisitor {
             }
 
             @Override
+            public void visitMaxs(int maxStack, int maxLocals) {
+                super.visitMaxs(maxStack, maxLocals);
+
+                vector.putShort(symbolTable.addConstantUtf8("Maxs")).putInt(4);
+                vector.putShort(maxStack).putShort(maxLocals);
+            }
+
+            @Override
             public void visitEnd() {
                 super.visitEnd();
 
