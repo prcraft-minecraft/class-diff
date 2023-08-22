@@ -172,7 +172,7 @@ public class DiffReader {
         for (int i = 0; i < attributeCount; i++) {
             final String attributeName = readUtf8(reader.pointer());
             if (attributeName == null) {
-                throw new IllegalArgumentException("Null attribute name at address " + Integer.toHexString(reader.pointer()));
+                throw new IllegalArgumentException("null attribute name at address " + Integer.toHexString(reader.pointer()));
             }
             reader.skip(2);
             final int attributeLength = reader.readInt();
@@ -288,8 +288,94 @@ public class DiffReader {
             readField(reader, visitor, node);
         }
 
+        visitor.visitMethods(memberNamePatchReader.readPatch(
+            reader,
+            node.methods != null ? MemberName.fromMethods(node.methods) : Collections.emptyList()
+        ));
+        for (int i = 0, l = reader.readShort(); i < l; i++) {
+            readMethod(reader, visitor, node);
+        }
+
         context.remove();
         visitor.visitEnd();
+    }
+
+    private void readMethod(ByteReader reader, DiffVisitor diffVisitor, ClassNode classNode) {
+        final int access = reader.readInt();
+        final String name = readUtf8(reader.pointer());
+        final String descriptor = readUtf8(reader.pointer() + 2);
+        final String signature = readUtf8(reader.pointer() + 4);
+        reader.skip(6);
+
+        MethodNode node = null;
+        if (classNode.methods != null) {
+            for (final MethodNode test : classNode.methods) {
+                if (test.name.equals(name) && test.desc.equals(descriptor)) {
+                    node = test;
+                    break;
+                }
+            }
+        }
+        if (node == null) {
+            node = new MethodNode(access, name, descriptor, signature, null);
+        }
+
+        final Patch<String> exceptions = classPatchReader.readPatch(
+            reader, node.exceptions != null ? node.exceptions : Collections.emptyList()
+        );
+        final MethodDiffVisitor visitor = diffVisitor.visitMethod(access, name, descriptor, signature, exceptions);
+
+        final int attrCount = reader.readShort();
+        for (int i = 0; i < attrCount; i++) {
+            reader.skip(2);
+            final int attrLength = reader.readInt();
+            final int endPos = reader.pointer() + attrLength;
+            if (visitor != null) {
+                final String attrName = readUtf8(reader.pointer() - 6);
+                if (attrName == null) {
+                    throw new IllegalArgumentException("null attribute name at address " + Integer.toHexString(reader.pointer() - 6));
+                }
+                switch (attrName) {
+                    case "VisibleAnnotations":
+                        visitor.visitAnnotations(annotationPatchReader.readPatch(
+                            reader,
+                            node.visibleAnnotations != null ? node.visibleAnnotations : Collections.emptyList()
+                        ), true);
+                        break;
+                    case "InvisibleAnnotations":
+                        visitor.visitAnnotations(annotationPatchReader.readPatch(
+                            reader,
+                            node.invisibleAnnotations != null ? node.invisibleAnnotations : Collections.emptyList()
+                        ), false);
+                        break;
+                    case "VisibleTypeAnnotations":
+                        visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
+                            reader,
+                            node.visibleTypeAnnotations != null ? node.visibleTypeAnnotations : Collections.emptyList()
+                        ), true);
+                        break;
+                    case "InvisibleTypeAnnotations":
+                        visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
+                            reader,
+                            node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
+                        ), false);
+                        break;
+                    default:
+                        if (attrName.startsWith("Custom")) {
+                            if (reader.readByte() != 0) {
+                                visitor.visitCustomAttribute(
+                                    attrName.substring(6),
+                                    Arrays.copyOfRange(contents, reader.pointer() + 1, reader.pointer() + attrLength)
+                                );
+                            } else {
+                                visitor.visitCustomAttribute(attrName.substring(6), null);
+                            }
+                        }
+                        break;
+                }
+            }
+            reader.pointer(endPos);
+        }
     }
 
     private void readField(ByteReader reader, DiffVisitor diffVisitor, ClassNode classNode) {
@@ -327,7 +413,7 @@ public class DiffReader {
             if (visitor != null) {
                 final String attrName = readUtf8(reader.pointer() - 6);
                 if (attrName == null) {
-                    throw new IllegalArgumentException("Null attribute name at address " + Integer.toHexString(reader.pointer() - 6));
+                    throw new IllegalArgumentException("null attribute name at address " + Integer.toHexString(reader.pointer() - 6));
                 }
                 switch (attrName) {
                     case "VisibleAnnotations":
@@ -379,7 +465,7 @@ public class DiffReader {
         for (int i = 0; i < attrCount; i++) {
             final String attrName = readUtf8(reader.pointer());
             if (attrName == null) {
-                throw new IllegalArgumentException("Null attribute name at address " + Integer.toHexString(reader.pointer()));
+                throw new IllegalArgumentException("null attribute name at address " + Integer.toHexString(reader.pointer()));
             }
             reader.skip(2);
             final int attrLen = reader.readInt();
@@ -482,7 +568,7 @@ public class DiffReader {
             if (visitor != null) {
                 final String attrName = readUtf8(reader.pointer() - 6);
                 if (attrName == null) {
-                    throw new IllegalArgumentException("Null attribute name at address " + Integer.toHexString(reader.pointer() - 6));
+                    throw new IllegalArgumentException("null attribute name at address " + Integer.toHexString(reader.pointer() - 6));
                 }
                 switch (attrName) {
                     case "VisibleAnnotations":

@@ -125,6 +125,8 @@ public class ClassDiffer {
 
         diffFields(original, modified);
 
+        diffMethods(original, modified);
+
         output.visitEnd();
     }
 
@@ -341,6 +343,87 @@ public class ClassDiffer {
         FieldNode original,
         FieldNode modified,
         FieldDiffVisitor output
+    ) {
+        diffAnnotated(
+            output,
+            original.visibleAnnotations, modified.visibleAnnotations,
+            original.invisibleAnnotations, modified.invisibleAnnotations,
+            original.visibleTypeAnnotations, modified.visibleTypeAnnotations,
+            original.invisibleTypeAnnotations, modified.invisibleTypeAnnotations
+        );
+
+        diffAttributable(output, original.attrs, modified.attrs);
+
+        output.visitEnd();
+    }
+
+    private void diffMethods(ClassNode original, ClassNode modified) {
+        final List<MemberName> aMethods = MemberName.fromMethods(original.methods);
+        final List<MemberName> bMethods = MemberName.fromMethods(modified.methods);
+        if (!aMethods.equals(bMethods)) {
+            output.visitMethods(DiffUtils.diff(aMethods, bMethods));
+        }
+        if (!bMethods.isEmpty()) {
+            final Map<MemberName, MethodNode> bMap = new LinkedHashMap<>();
+            for (int i = 0; i < bMethods.size(); i++) {
+                bMap.put(bMethods.get(i), modified.methods.get(i));
+            }
+
+            final Set<MemberName> extra = new LinkedHashSet<>(bMap.keySet());
+            for (int i = 0; i < aMethods.size(); i++) {
+                final MemberName name = aMethods.get(i);
+                if (extra.remove(name)) {
+                    final MethodNode aNode = original.methods.get(i);
+                    final MethodNode bNode = bMap.get(name);
+                    if (!Equalizers.method(aNode, bNode)) {
+                        final MethodDiffVisitor visitor = output.visitMethod(
+                            bNode.access, name.name, name.descriptor, bNode.signature,
+                            DiffUtils.diff(aNode.exceptions, bNode.exceptions)
+                        );
+                        if (visitor != null) {
+                            diffMethods(aNode, bNode, visitor);
+                        }
+                    }
+                }
+            }
+
+            for (final MemberName name : extra) {
+                final MethodNode node = bMap.get(name);
+                final MethodDiffVisitor visitor = output.visitMethod(
+                    node.access, name.name, name.descriptor, node.signature,
+                    DiffUtils.diff(Collections.emptyList(), node.exceptions)
+                );
+                if (visitor != null) {
+                    if (node.visibleAnnotations != null) {
+                        visitor.visitAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.visibleAnnotations, Equalizers::annotation
+                        ), true);
+                    }
+                    if (node.invisibleAnnotations != null) {
+                        visitor.visitAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.invisibleAnnotations, Equalizers::annotation
+                        ), false);
+                    }
+                    if (node.visibleTypeAnnotations != null) {
+                        visitor.visitTypeAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.visibleTypeAnnotations, Equalizers::typeAnnotation
+                        ), true);
+                    }
+                    if (node.invisibleTypeAnnotations != null) {
+                        visitor.visitTypeAnnotations(DiffUtils.diff(
+                            Collections.emptyList(), node.invisibleTypeAnnotations, Equalizers::typeAnnotation
+                        ), false);
+                    }
+                    visitor.visitEnd();
+                }
+            }
+        }
+    }
+
+    private void diffMethods(
+        MethodNode original,
+        MethodNode modified,
+        MethodDiffVisitor output
     ) {
         diffAnnotated(
             output,

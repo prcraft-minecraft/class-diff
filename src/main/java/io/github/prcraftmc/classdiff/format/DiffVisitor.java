@@ -145,6 +145,26 @@ public abstract class DiffVisitor implements AnnotatedElementVisitor, CustomAttr
         return null;
     }
 
+    public void visitMethods(Patch<MemberName> patch) {
+        if (delegate != null) {
+            delegate.visitMethods(patch);
+        }
+    }
+
+    @Nullable
+    public MethodDiffVisitor visitMethod(
+        int access,
+        String name,
+        String descriptor,
+        @Nullable String signature,
+        Patch<String> exceptions
+    ) {
+        if (delegate != null) {
+            return delegate.visitMethod(access, name, descriptor, signature, exceptions);
+        }
+        return null;
+    }
+
     public void visitEnd() {
         if (delegate != null) {
             delegate.visitEnd();

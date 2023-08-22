@@ -1,6 +1,7 @@
 package io.github.prcraftmc.classdiff.util;
 
 import org.objectweb.asm.tree.FieldNode;
+import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.RecordComponentNode;
 
 import java.util.ArrayList;
@@ -30,6 +31,14 @@ public class MemberName {
         return Objects.hash(name, descriptor);
     }
 
+    @Override
+    public String toString() {
+        if (descriptor.startsWith("(")) {
+            return name + descriptor;
+        }
+        return name + ':' + descriptor;
+    }
+
     public static MemberName fromRecordComponent(RecordComponentNode node) {
         return new MemberName(node.name, node.descriptor);
     }
@@ -56,6 +65,21 @@ public class MemberName {
         final List<MemberName> result = new ArrayList<>(nodes.size());
         for (final FieldNode node : nodes) {
             result.add(fromField(node));
+        }
+        return result;
+    }
+
+    public static MemberName fromMethod(MethodNode node) {
+        return new MemberName(node.name, node.desc);
+    }
+
+    public static List<MemberName> fromMethods(List<MethodNode> nodes) {
+        if (nodes == null) {
+            return Collections.emptyList();
+        }
+        final List<MemberName> result = new ArrayList<>(nodes.size());
+        for (final MethodNode node : nodes) {
+            result.add(fromMethod(node));
         }
         return result;
     }

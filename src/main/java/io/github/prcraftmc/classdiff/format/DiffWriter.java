@@ -69,6 +69,9 @@ public class DiffWriter extends DiffVisitor {
     private ByteVector fieldsPatch;
     private final List<ByteVector> fields = new ArrayList<>();
 
+    private ByteVector methodsPatch;
+    private final List<ByteVector> methods = new ArrayList<>();
+
     private final Map<Integer, byte @Nullable []> customAttributes = new LinkedHashMap<>();
 
     public DiffWriter() {
@@ -427,7 +430,13 @@ public class DiffWriter extends DiffVisitor {
     }
 
     @Override
-    public FieldDiffVisitor visitField(int access, String name, String descriptor, @Nullable String signature, @Nullable Object value) {
+    public FieldDiffVisitor visitField(
+        int access,
+        String name,
+        String descriptor,
+        @Nullable String signature,
+        @Nullable Object value
+    ) {
         final FieldDiffVisitor delegate = super.visitField(access, name, descriptor, signature, value);
 
         final ByteVector vector = new ByteVector();
@@ -441,6 +450,99 @@ public class DiffWriter extends DiffVisitor {
 
         vector.putShort(0);
         return new FieldDiffVisitor(delegate) {
+            final int countIndex = vector.size() - 2;
+            int sizeIndex;
+            int attributeCount;
+
+            @Override
+            public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
+                super.visitAnnotations(patch, visible);
+
+                preAttr((visible ? "Visible" : "Invisible") + "Annotations");
+                annotationPatchWriter.write(vector, patch);
+                postAttr();
+            }
+
+            @Override
+            public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
+                super.visitTypeAnnotations(patch, visible);
+
+                preAttr((visible ? "Visible" : "Invisible") + "TypeAnnotations");
+                typeAnnotationPatchWriter.write(vector, patch);
+                postAttr();
+            }
+
+            @Override
+            public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
+                super.visitCustomAttribute(name, patchOrContents);
+
+                vector.putShort(symbolTable.addConstantUtf8("Custom" + name));
+                if (patchOrContents == null) {
+                    vector.putInt(1).putByte(0);
+                } else {
+                    vector.putInt(patchOrContents.length + 1)
+                        .putByte(1)
+                        .putByteArray(patchOrContents, 0, patchOrContents.length);
+                }
+                attributeCount++;
+            }
+
+            @Override
+            public void visitEnd() {
+                super.visitEnd();
+
+                final byte[] data = ReflectUtils.getByteVectorData(vector);
+                data[countIndex] = (byte)(attributeCount >> 8);
+                data[countIndex + 1] = (byte)attributeCount;
+            }
+
+            private void preAttr(String name) {
+                vector.putShort(symbolTable.addConstantUtf8(name));
+                sizeIndex = vector.size();
+                vector.putInt(0);
+            }
+
+            private void postAttr() {
+                final byte[] data = ReflectUtils.getByteVectorData(vector);
+                final int index = sizeIndex;
+                final int size = vector.size() - sizeIndex - 4;
+                data[index] = (byte)(size >>> 24);
+                data[index + 1] = (byte)(size >> 16);
+                data[index + 2] = (byte)(size >> 8);
+                data[index + 3] = (byte)size;
+                attributeCount++;
+            }
+        };
+    }
+
+    @Override
+    public void visitMethods(Patch<MemberName> patch) {
+        super.visitMethods(patch);
+
+        memberNamePatchWriter.write(methodsPatch = new ByteVector(), patch);
+    }
+
+    @Override
+    public MethodDiffVisitor visitMethod(
+        int access,
+        String name,
+        String descriptor,
+        @Nullable String signature,
+        Patch<String> exceptions
+    ) {
+        final MethodDiffVisitor delegate = super.visitMethod(access, name, descriptor, signature, exceptions);
+
+        final ByteVector vector = new ByteVector();
+        methods.add(vector);
+
+        vector.putInt(access);
+        vector.putShort(symbolTable.addConstantUtf8(name));
+        vector.putShort(symbolTable.addConstantUtf8(descriptor));
+        vector.putShort(signature != null ? symbolTable.addConstantUtf8(signature) : 0);
+        classPatchWriter.write(vector, exceptions);
+
+        vector.putShort(0);
+        return new MethodDiffVisitor(delegate) {
             final int countIndex = vector.size() - 2;
             int sizeIndex;
             int attributeCount;
@@ -663,6 +765,16 @@ public class DiffWriter extends DiffVisitor {
         result.putShort(fields.size());
         for (final ByteVector field : fields) {
             result.putByteArray(ReflectUtils.getByteVectorData(field), 0, field.size());
+        }
+
+        if (methodsPatch != null) {
+            result.putByteArray(ReflectUtils.getByteVectorData(methodsPatch), 0, methodsPatch.size());
+        } else {
+            result.putShort(0);
+        }
+        result.putShort(methods.size());
+        for (final ByteVector method : methods) {
+            result.putByteArray(ReflectUtils.getByteVectorData(method), 0, method.size());
         }
 
         return Arrays.copyOf(ReflectUtils.getByteVectorData(result), result.size());

@@ -457,7 +457,10 @@ public class ClassPatcher extends DiffVisitor {
             node.fields.add(fieldNode);
         }
 
+        fieldNode.access = access;
         fieldNode.signature = signature;
+        fieldNode.value = value;
+
         final FieldNode fFieldNode = fieldNode;
         return new FieldDiffVisitor() {
             @Override
@@ -520,6 +523,130 @@ public class ClassPatcher extends DiffVisitor {
                 final Attribute attr = ReflectUtils.newAttribute(name);
                 ReflectUtils.setAttributeContent(attr, patchOrContents);
                 fFieldNode.attrs.add(attr);
+            }
+        };
+    }
+
+    @Override
+    public void visitMethods(Patch<MemberName> patch) {
+        final List<MemberName> originalList = MemberName.fromMethods(node.methods);
+        final List<MemberName> modifiedList;
+        try {
+            modifiedList = patch.applyTo(originalList);
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
+        }
+
+        final Map<MemberName, MethodNode> originalMap = new HashMap<>();
+        for (int i = 0; i < originalList.size(); i++) {
+            originalMap.put(originalList.get(i), node.methods.get(i));
+        }
+
+        node.methods = new ArrayList<>();
+        for (final MemberName name : modifiedList) {
+            MethodNode methodNode = originalMap.get(name);
+            if (methodNode == null) {
+                methodNode = new MethodNode(0, name.name, name.descriptor, null, null);
+            }
+            node.methods.add(methodNode);
+        }
+    }
+
+    @Nullable
+    @Override
+    public MethodDiffVisitor visitMethod(
+        int access,
+        String name,
+        String descriptor,
+        @Nullable String signature,
+        Patch<String> exceptions
+    ) {
+        if (node.methods == null) {
+            node.methods = new ArrayList<>();
+        }
+
+        MethodNode methodNode = null;
+        for (final MethodNode test : node.methods) {
+            if (test.name.equals(name) && test.desc.equals(descriptor)) {
+                methodNode = test;
+                break;
+            }
+        }
+        if (methodNode == null) {
+            methodNode = new MethodNode(access, name, descriptor, signature, null);
+            node.methods.add(methodNode);
+        }
+
+        methodNode.access = access;
+        methodNode.signature = signature;
+        try {
+            methodNode.exceptions = exceptions.applyTo(methodNode.exceptions);
+        } catch (PatchFailedException e) {
+            throw new UncheckedPatchFailure(e);
+        }
+
+        final MethodNode fMethodNode = methodNode;
+        return new MethodDiffVisitor() {
+            @Override
+            public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
+                try {
+                    if (visible) {
+                        if (fMethodNode.visibleAnnotations == null) {
+                            fMethodNode.visibleAnnotations = Collections.emptyList();
+                        }
+                        fMethodNode.visibleAnnotations = patch.applyTo(fMethodNode.visibleAnnotations);
+                    } else {
+                        if (fMethodNode.invisibleAnnotations == null) {
+                            fMethodNode.invisibleAnnotations = Collections.emptyList();
+                        }
+                        fMethodNode.invisibleAnnotations = patch.applyTo(fMethodNode.invisibleAnnotations);
+                    }
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
+                try {
+                    if (visible) {
+                        if (fMethodNode.visibleTypeAnnotations == null) {
+                            fMethodNode.visibleTypeAnnotations = Collections.emptyList();
+                        }
+                        fMethodNode.visibleTypeAnnotations = patch.applyTo(fMethodNode.visibleTypeAnnotations);
+                    } else {
+                        if (fMethodNode.invisibleTypeAnnotations == null) {
+                            fMethodNode.invisibleTypeAnnotations = Collections.emptyList();
+                        }
+                        fMethodNode.invisibleTypeAnnotations = patch.applyTo(fMethodNode.invisibleTypeAnnotations);
+                    }
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
+                if (patchOrContents == null) {
+                    fMethodNode.attrs.removeIf(attr -> attr.type.equals(name));
+                    return;
+                }
+                for (final Attribute attr : fMethodNode.attrs) {
+                    if (attr.type.equals(name)) {
+                        final byte[] original = ReflectUtils.getAttributeContent(attr);
+                        final byte[] patched;
+                        try {
+                            patched = bytePatcher.patch(original, patchOrContents);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        ReflectUtils.setAttributeContent(attr, patched);
+                        return;
+                    }
+                }
+                final Attribute attr = ReflectUtils.newAttribute(name);
+                ReflectUtils.setAttributeContent(attr, patchOrContents);
+                fMethodNode.attrs.add(attr);
             }
         };
     }
