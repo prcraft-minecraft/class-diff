@@ -1,0 +1,11 @@
+package test5;
+
+public class World {
+    public static void test(@Test.Inner(42) int a) {
+        System.out.println(a);
+    }
+
+    public static void test2(@Test.Inner(72) float b) {
+        System.out.println(b);
+    }
+}

@@ -2,10 +2,8 @@ package io.github.prcraftmc.classdiff.format;
 
 import com.github.difflib.patch.DeltaType;
 import com.github.difflib.patch.Patch;
-import io.github.prcraftmc.classdiff.util.ByteReader;
-import io.github.prcraftmc.classdiff.util.MemberName;
-import io.github.prcraftmc.classdiff.util.PatchReader;
-import io.github.prcraftmc.classdiff.util.ReflectUtils;
+import io.github.prcraftmc.classdiff.util.Util;
+import io.github.prcraftmc.classdiff.util.*;
 import org.objectweb.asm.*;
 import org.objectweb.asm.tree.*;
 
@@ -20,7 +18,7 @@ public class DiffReader {
         return readClass(reader.pointer() - 2);
     });
     private final PatchReader<AnnotationNode> annotationPatchReader = new PatchReader<>(reader -> {
-        final AnnotationNode result = new AnnotationNode(readClass(reader.pointer()));
+        final AnnotationNode result = new AnnotationNode(readUtf8(reader.pointer()));
         reader.pointer(readElementValues(result, reader.pointer() + 2, true));
         return result;
     });
@@ -369,6 +367,30 @@ public class DiffReader {
                             visitor.visitAnnotationDefault(null);
                         }
                         break;
+                    case "VisibleParameterAnnotations": {
+                        final int annotableCount = reader.readByte();
+                        final int paramCount = Type.getArgumentTypes(descriptor).length;
+                        final List<Patch<AnnotationNode>> patches = new ArrayList<>(paramCount);
+                        for (int j = 0; j < paramCount; j++) {
+                            patches.add(annotationPatchReader.readPatch(
+                                reader, Util.getListFromArray(node.visibleParameterAnnotations, j)
+                            ));
+                        }
+                        visitor.visitParameterAnnotations(annotableCount, patches, true);
+                        break;
+                    }
+                    case "InvisibleParameterAnnotations": {
+                        final int annotableCount = reader.readByte();
+                        final int paramCount = Type.getArgumentTypes(descriptor).length;
+                        final List<Patch<AnnotationNode>> patches = new ArrayList<>(paramCount);
+                        for (int j = 0; j < paramCount; j++) {
+                            patches.add(annotationPatchReader.readPatch(
+                                reader, Util.getListFromArray(node.invisibleParameterAnnotations, j)
+                            ));
+                        }
+                        visitor.visitParameterAnnotations(annotableCount, patches, false);
+                        break;
+                    }
                     default:
                         if (attrName.startsWith("Custom")) {
                             if (reader.readByte() != 0) {

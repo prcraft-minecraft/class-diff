@@ -6,6 +6,7 @@ import com.nothome.delta.GDiffPatcher;
 import io.github.prcraftmc.classdiff.format.*;
 import io.github.prcraftmc.classdiff.util.MemberName;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
+import io.github.prcraftmc.classdiff.util.Util;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
@@ -628,6 +629,32 @@ public class ClassPatcher extends DiffVisitor {
             @Override
             public void visitAnnotationDefault(@Nullable Object value) {
                 fMethodNode.annotationDefault = value;
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public void visitParameterAnnotations(int annotableCount, List<Patch<AnnotationNode>> patches, boolean visible) {
+                final List<AnnotationNode>[] output;
+                if (visible) {
+                    fMethodNode.visibleAnnotableParameterCount = annotableCount;
+                    if (fMethodNode.visibleParameterAnnotations == null) {
+                        fMethodNode.visibleParameterAnnotations = (List<AnnotationNode>[])new List<?>[patches.size()];
+                    }
+                    output = fMethodNode.visibleParameterAnnotations;
+                } else {
+                    fMethodNode.invisibleAnnotableParameterCount = annotableCount;
+                    if (fMethodNode.invisibleParameterAnnotations == null) {
+                        fMethodNode.invisibleParameterAnnotations = (List<AnnotationNode>[])new List<?>[patches.size()];
+                    }
+                    output = fMethodNode.invisibleParameterAnnotations;
+                }
+                try {
+                    for (int i = 0; i < output.length; i++) {
+                        output[i] = patches.get(i).applyTo(Util.getListFromArray(output, i));
+                    }
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
             }
 
             @Override

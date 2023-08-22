@@ -581,6 +581,18 @@ public class DiffWriter extends DiffVisitor {
             }
 
             @Override
+            public void visitParameterAnnotations(int annotableCount, List<Patch<AnnotationNode>> patches, boolean visible) {
+                super.visitParameterAnnotations(annotableCount, patches, visible);
+
+                preAttr((visible ? "Visible" : "Invisible") + "ParameterAnnotations");
+                vector.putByte(annotableCount);
+                for (final Patch<AnnotationNode> patch : patches) {
+                    annotationPatchWriter.write(vector, patch);
+                }
+                postAttr();
+            }
+
+            @Override
             public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
                 super.visitCustomAttribute(name, patchOrContents);
 

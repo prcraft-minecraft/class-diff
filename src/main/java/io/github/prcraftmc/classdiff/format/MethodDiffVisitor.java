@@ -5,6 +5,8 @@ import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.TypeAnnotationNode;
 
+import java.util.List;
+
 public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, CustomAttributableVisitor {
     @Nullable
     private final MethodDiffVisitor delegate;
@@ -39,6 +41,12 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
     public void visitAnnotationDefault(@Nullable Object value) {
         if (delegate != null) {
             delegate.visitAnnotationDefault(value);
+        }
+    }
+
+    public void visitParameterAnnotations(int annotableCount, List<Patch<AnnotationNode>> patches, boolean visible) {
+        if (delegate != null) {
+            delegate.visitParameterAnnotations(annotableCount, patches, visible);
         }
     }
 

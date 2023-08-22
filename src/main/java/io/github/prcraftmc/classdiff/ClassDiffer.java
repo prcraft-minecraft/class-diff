@@ -7,8 +7,10 @@ import io.github.prcraftmc.classdiff.format.*;
 import io.github.prcraftmc.classdiff.util.Equalizers;
 import io.github.prcraftmc.classdiff.util.MemberName;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
+import io.github.prcraftmc.classdiff.util.Util;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
 
 import java.io.IOException;
@@ -435,6 +437,44 @@ public class ClassDiffer {
 
         if (!Equalizers.annotationValue(original.annotationDefault, modified.annotationDefault)) {
             output.visitAnnotationDefault(modified.annotationDefault);
+        }
+
+        if (
+            original.visibleAnnotableParameterCount != modified.visibleAnnotableParameterCount ||
+            !Equalizers.arrayEquals(
+                original.visibleParameterAnnotations, modified.visibleParameterAnnotations,
+                (a, b) -> Equalizers.listEquals(a, b, Equalizers::annotation)
+            )
+        ) {
+            final int paramCount = Type.getArgumentTypes(modified.desc).length;
+            final List<Patch<AnnotationNode>> patches = new ArrayList<>(paramCount);
+            for (int i = 0; i < paramCount; i++) {
+                patches.add(DiffUtils.diff(
+                    Util.getListFromArray(original.visibleParameterAnnotations, i),
+                    Util.getListFromArray(modified.visibleParameterAnnotations, i),
+                    Equalizers::annotation
+                ));
+            }
+            output.visitParameterAnnotations(modified.visibleAnnotableParameterCount, patches, false);
+        }
+
+        if (
+            original.invisibleAnnotableParameterCount != modified.invisibleAnnotableParameterCount ||
+                !Equalizers.arrayEquals(
+                    original.invisibleParameterAnnotations, modified.invisibleParameterAnnotations,
+                    (a, b) -> Equalizers.listEquals(a, b, Equalizers::annotation)
+                )
+        ) {
+            final int paramCount = Type.getArgumentTypes(modified.desc).length;
+            final List<Patch<AnnotationNode>> patches = new ArrayList<>(paramCount);
+            for (int i = 0; i < paramCount; i++) {
+                patches.add(DiffUtils.diff(
+                    Util.getListFromArray(original.invisibleParameterAnnotations, i),
+                    Util.getListFromArray(modified.invisibleParameterAnnotations, i),
+                    Equalizers::annotation
+                ));
+            }
+            output.visitParameterAnnotations(modified.invisibleAnnotableParameterCount, patches, false);
         }
 
         diffAttributable(output, original.attrs, modified.attrs);
