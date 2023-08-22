@@ -566,6 +566,21 @@ public class DiffWriter extends DiffVisitor {
             }
 
             @Override
+            public void visitAnnotationDefault(Object value) {
+                super.visitAnnotationDefault(value);
+
+                preAttr("AnnotationDefault");
+                if (value != null) {
+                    final AnnotationNode annotationNode = new AnnotationNode("");
+                    annotationNode.values = new ArrayList<>();
+                    annotationNode.values.add("");
+                    annotationNode.values.add(value);
+                    annotationNode.accept(new AnnotationWriter(symbolTable, false, vector));
+                }
+                postAttr();
+            }
+
+            @Override
             public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
                 super.visitCustomAttribute(name, patchOrContents);
 

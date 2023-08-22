@@ -36,6 +36,12 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
         }
     }
 
+    public void visitAnnotationDefault(@Nullable Object value) {
+        if (delegate != null) {
+            delegate.visitAnnotationDefault(value);
+        }
+    }
+
     @Override
     public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
         if (delegate != null) {

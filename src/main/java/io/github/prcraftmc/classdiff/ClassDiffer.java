@@ -433,6 +433,10 @@ public class ClassDiffer {
             original.invisibleTypeAnnotations, modified.invisibleTypeAnnotations
         );
 
+        if (!Equalizers.annotationValue(original.annotationDefault, modified.annotationDefault)) {
+            output.visitAnnotationDefault(modified.annotationDefault);
+        }
+
         diffAttributable(output, original.attrs, modified.attrs);
 
         output.visitEnd();

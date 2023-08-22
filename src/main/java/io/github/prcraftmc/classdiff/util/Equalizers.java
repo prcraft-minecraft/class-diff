@@ -38,7 +38,7 @@ public class Equalizers {
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean annotationValue(Object a, Object b) {
+    public static boolean annotationValue(Object a, Object b) {
         if (a == b) {
             return true;
         }

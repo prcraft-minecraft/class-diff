@@ -296,8 +296,8 @@ public class DiffReader {
             readMethod(reader, visitor, node);
         }
 
-        context.remove();
         visitor.visitEnd();
+        context.remove();
     }
 
     private void readMethod(ByteReader reader, DiffVisitor diffVisitor, ClassNode classNode) {
@@ -359,6 +359,15 @@ public class DiffReader {
                             reader,
                             node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
                         ), false);
+                        break;
+                    case "AnnotationDefault":
+                        if (attrLength > 0) {
+                            final AnnotationNode annotationNode = new AnnotationNode("");
+                            readElementValue(annotationNode, reader.pointer(), null);
+                            visitor.visitAnnotationDefault(annotationNode.values.get(1));
+                        } else {
+                            visitor.visitAnnotationDefault(null);
+                        }
                         break;
                     default:
                         if (attrName.startsWith("Custom")) {

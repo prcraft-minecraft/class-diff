@@ -626,6 +626,11 @@ public class ClassPatcher extends DiffVisitor {
             }
 
             @Override
+            public void visitAnnotationDefault(@Nullable Object value) {
+                fMethodNode.annotationDefault = value;
+            }
+
+            @Override
             public void visitCustomAttribute(String name, byte @Nullable [] patchOrContents) {
                 if (patchOrContents == null) {
                     fMethodNode.attrs.removeIf(attr -> attr.type.equals(name));
