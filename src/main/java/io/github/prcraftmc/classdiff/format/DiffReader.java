@@ -391,6 +391,12 @@ public class DiffReader {
                         visitor.visitParameterAnnotations(annotableCount, patches, false);
                         break;
                     }
+                    case "MethodParameters":
+                        visitor.visitParameters(new PatchReader<>(reader1 -> {
+                            reader1.skip(2);
+                            return new ParameterNode(readUtf8(reader1.pointer() - 2), reader1.readInt());
+                        }).readPatch(reader, node.parameters != null ? node.parameters : Collections.emptyList()));
+                        break;
                     default:
                         if (attrName.startsWith("Custom")) {
                             if (reader.readByte() != 0) {

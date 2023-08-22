@@ -180,6 +180,8 @@ public class ClassPatcher extends DiffVisitor {
 
     @Override
     public void visitRecordComponents(Patch<MemberName> patch) {
+        if (patch.getDeltas().isEmpty()) return;
+
         final List<MemberName> originalList = MemberName.fromRecordComponents(node.recordComponents);
         final List<MemberName> modifiedList;
         try {
@@ -410,6 +412,8 @@ public class ClassPatcher extends DiffVisitor {
 
     @Override
     public void visitFields(Patch<MemberName> patch) {
+        if (patch.getDeltas().isEmpty()) return;
+
         final List<MemberName> originalList = MemberName.fromFields(node.fields);
         final List<MemberName> modifiedList;
         try {
@@ -530,6 +534,8 @@ public class ClassPatcher extends DiffVisitor {
 
     @Override
     public void visitMethods(Patch<MemberName> patch) {
+        if (patch.getDeltas().isEmpty()) return;
+
         final List<MemberName> originalList = MemberName.fromMethods(node.methods);
         final List<MemberName> modifiedList;
         try {
@@ -652,6 +658,18 @@ public class ClassPatcher extends DiffVisitor {
                     for (int i = 0; i < output.length; i++) {
                         output[i] = patches.get(i).applyTo(Util.getListFromArray(output, i));
                     }
+                } catch (PatchFailedException e) {
+                    throw new UncheckedPatchFailure(e);
+                }
+            }
+
+            @Override
+            public void visitParameters(Patch<ParameterNode> parameters) {
+                if (fMethodNode.parameters == null) {
+                    fMethodNode.parameters = Collections.emptyList();
+                }
+                try {
+                    fMethodNode.parameters = parameters.applyTo(fMethodNode.parameters);
                 } catch (PatchFailedException e) {
                     throw new UncheckedPatchFailure(e);
                 }

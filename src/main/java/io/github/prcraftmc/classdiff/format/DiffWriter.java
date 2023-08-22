@@ -215,18 +215,18 @@ public class DiffWriter extends DiffVisitor {
             public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
                 super.visitAnnotations(patch, visible);
 
-                preAttr((visible ? "Visible" : "Invisible") + "Annotations");
+                beginAttr((visible ? "Visible" : "Invisible") + "Annotations");
                 annotationPatchWriter.write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
                 super.visitTypeAnnotations(patch, visible);
 
-                preAttr((visible ? "Visible" : "Invisible") + "TypeAnnotations");
+                beginAttr((visible ? "Visible" : "Invisible") + "TypeAnnotations");
                 typeAnnotationPatchWriter.write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
@@ -253,13 +253,13 @@ public class DiffWriter extends DiffVisitor {
                 data[countIndex + 1] = (byte)attributeCount;
             }
 
-            private void preAttr(String name) {
+            private void beginAttr(String name) {
                 vector.putShort(symbolTable.addConstantUtf8(name));
                 sizeIndex = vector.size();
                 vector.putInt(0);
             }
 
-            private void postAttr() {
+            private void endAttr() {
                 final byte[] data = ReflectUtils.getByteVectorData(vector);
                 final int index = sizeIndex;
                 final int size = vector.size() - sizeIndex - 4;
@@ -292,38 +292,38 @@ public class DiffWriter extends DiffVisitor {
             public void visitMainClass(@Nullable String mainClass) {
                 super.visitMainClass(mainClass);
 
-                preAttr("MainClass");
+                beginAttr("MainClass");
                 vector.putShort(mainClass != null ? symbolTable.addConstantClass(mainClass).index : 0);
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitPackages(Patch<String> patch) {
                 super.visitPackages(patch);
 
-                preAttr("Packages");
+                beginAttr("Packages");
                 packagePatchWriter.write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitRequires(Patch<ModuleRequireNode> patch) {
                 super.visitRequires(patch);
 
-                preAttr("Requires");
+                beginAttr("Requires");
                 new PatchWriter<ModuleRequireNode>((vec, value) -> {
                     vec.putShort(symbolTable.addConstantModule(value.module).index);
                     vec.putShort(value.access);
                     vec.putShort(value.version != null ? symbolTable.addConstantUtf8(value.version) : 0);
                 }).write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitExports(Patch<ModuleExportNode> patch) {
                 super.visitExports(patch);
 
-                preAttr("Exports");
+                beginAttr("Exports");
                 new PatchWriter<ModuleExportNode>((vec, value) -> {
                     vec.putShort(symbolTable.addConstantPackage(value.packaze).index);
                     vec.putShort(value.access);
@@ -336,14 +336,14 @@ public class DiffWriter extends DiffVisitor {
                         vec.putShort(0);
                     }
                 }).write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitOpens(Patch<ModuleOpenNode> patch) {
                 super.visitOpens(patch);
 
-                preAttr("Opens");
+                beginAttr("Opens");
                 new PatchWriter<ModuleOpenNode>((vec, value) -> {
                     vec.putShort(symbolTable.addConstantPackage(value.packaze).index);
                     vec.putShort(value.access);
@@ -356,23 +356,23 @@ public class DiffWriter extends DiffVisitor {
                         vec.putShort(0);
                     }
                 }).write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitUses(Patch<String> patch) {
                 super.visitUses(patch);
 
-                preAttr("Uses");
+                beginAttr("Uses");
                 classPatchWriter.write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitProvides(Patch<ModuleProvideNode> patch) {
                 super.visitProvides(patch);
 
-                preAttr("Provides");
+                beginAttr("Provides");
                 new PatchWriter<ModuleProvideNode>((vec, value) -> {
                     vec.putShort(symbolTable.addConstantClass(value.service).index);
                     if (value.providers != null) {
@@ -384,7 +384,7 @@ public class DiffWriter extends DiffVisitor {
                         vec.putShort(0);
                     }
                 }).write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
@@ -396,13 +396,13 @@ public class DiffWriter extends DiffVisitor {
                 data[countIndex + 1] = (byte)attributeCount;
             }
 
-            private void preAttr(String name) {
+            private void beginAttr(String name) {
                 vector.putShort(symbolTable.addConstantUtf8(name));
                 sizeIndex = vector.size();
                 vector.putInt(0);
             }
 
-            private void postAttr() {
+            private void endAttr() {
                 final byte[] data = ReflectUtils.getByteVectorData(vector);
                 final int index = sizeIndex;
                 final int size = vector.size() - sizeIndex - 4;
@@ -458,18 +458,18 @@ public class DiffWriter extends DiffVisitor {
             public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
                 super.visitAnnotations(patch, visible);
 
-                preAttr((visible ? "Visible" : "Invisible") + "Annotations");
+                beginAttr((visible ? "Visible" : "Invisible") + "Annotations");
                 annotationPatchWriter.write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
                 super.visitTypeAnnotations(patch, visible);
 
-                preAttr((visible ? "Visible" : "Invisible") + "TypeAnnotations");
+                beginAttr((visible ? "Visible" : "Invisible") + "TypeAnnotations");
                 typeAnnotationPatchWriter.write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
@@ -496,13 +496,13 @@ public class DiffWriter extends DiffVisitor {
                 data[countIndex + 1] = (byte)attributeCount;
             }
 
-            private void preAttr(String name) {
+            private void beginAttr(String name) {
                 vector.putShort(symbolTable.addConstantUtf8(name));
                 sizeIndex = vector.size();
                 vector.putInt(0);
             }
 
-            private void postAttr() {
+            private void endAttr() {
                 final byte[] data = ReflectUtils.getByteVectorData(vector);
                 final int index = sizeIndex;
                 final int size = vector.size() - sizeIndex - 4;
@@ -551,25 +551,25 @@ public class DiffWriter extends DiffVisitor {
             public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
                 super.visitAnnotations(patch, visible);
 
-                preAttr((visible ? "Visible" : "Invisible") + "Annotations");
+                beginAttr((visible ? "Visible" : "Invisible") + "Annotations");
                 annotationPatchWriter.write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitTypeAnnotations(Patch<TypeAnnotationNode> patch, boolean visible) {
                 super.visitTypeAnnotations(patch, visible);
 
-                preAttr((visible ? "Visible" : "Invisible") + "TypeAnnotations");
+                beginAttr((visible ? "Visible" : "Invisible") + "TypeAnnotations");
                 typeAnnotationPatchWriter.write(vector, patch);
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitAnnotationDefault(Object value) {
                 super.visitAnnotationDefault(value);
 
-                preAttr("AnnotationDefault");
+                beginAttr("AnnotationDefault");
                 if (value != null) {
                     final AnnotationNode annotationNode = new AnnotationNode("");
                     annotationNode.values = new ArrayList<>();
@@ -577,19 +577,30 @@ public class DiffWriter extends DiffVisitor {
                     annotationNode.values.add(value);
                     annotationNode.accept(new AnnotationWriter(symbolTable, false, vector));
                 }
-                postAttr();
+                endAttr();
             }
 
             @Override
             public void visitParameterAnnotations(int annotableCount, List<Patch<AnnotationNode>> patches, boolean visible) {
                 super.visitParameterAnnotations(annotableCount, patches, visible);
 
-                preAttr((visible ? "Visible" : "Invisible") + "ParameterAnnotations");
+                beginAttr((visible ? "Visible" : "Invisible") + "ParameterAnnotations");
                 vector.putByte(annotableCount);
                 for (final Patch<AnnotationNode> patch : patches) {
                     annotationPatchWriter.write(vector, patch);
                 }
-                postAttr();
+                endAttr();
+            }
+
+            @Override
+            public void visitParameters(Patch<ParameterNode> parameters) {
+                super.visitParameters(parameters);
+
+                beginAttr("MethodParameters");
+                new PatchWriter<ParameterNode>((vec, value) ->
+                    vec.putShort(symbolTable.addConstantUtf8(value.name)).putInt(value.access)
+                ).write(vector, parameters);
+                endAttr();
             }
 
             @Override
@@ -616,13 +627,13 @@ public class DiffWriter extends DiffVisitor {
                 data[countIndex + 1] = (byte)attributeCount;
             }
 
-            private void preAttr(String name) {
+            private void beginAttr(String name) {
                 vector.putShort(symbolTable.addConstantUtf8(name));
                 sizeIndex = vector.size();
                 vector.putInt(0);
             }
 
-            private void postAttr() {
+            private void endAttr() {
                 final byte[] data = ReflectUtils.getByteVectorData(vector);
                 final int index = sizeIndex;
                 final int size = vector.size() - sizeIndex - 4;

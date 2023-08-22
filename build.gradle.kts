@@ -42,6 +42,7 @@ tasks.compileTestJava {
     if (JavaVersion.current().isJava9Compatible) {
         options.release.set(17)
     }
+    options.compilerArgs.add("-parameters")
 }
 
 tasks.test {

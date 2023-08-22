@@ -1,7 +1,7 @@
 package test5;
 
 public class World {
-    public static void test(@Test.Inner(42) int a) {
+    public static void test(@Test.Inner(42) final int a) {
         System.out.println(a);
     }
 

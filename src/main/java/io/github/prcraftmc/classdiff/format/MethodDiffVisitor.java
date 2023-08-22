@@ -3,6 +3,7 @@ package io.github.prcraftmc.classdiff.format;
 import com.github.difflib.patch.Patch;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AnnotationNode;
+import org.objectweb.asm.tree.ParameterNode;
 import org.objectweb.asm.tree.TypeAnnotationNode;
 
 import java.util.List;
@@ -47,6 +48,12 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
     public void visitParameterAnnotations(int annotableCount, List<Patch<AnnotationNode>> patches, boolean visible) {
         if (delegate != null) {
             delegate.visitParameterAnnotations(annotableCount, patches, visible);
+        }
+    }
+
+    public void visitParameters(Patch<ParameterNode> parameters) {
+        if (delegate != null) {
+            delegate.visitParameters(parameters);
         }
     }
 

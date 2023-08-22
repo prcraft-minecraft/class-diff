@@ -477,6 +477,14 @@ public class ClassDiffer {
             output.visitParameterAnnotations(modified.invisibleAnnotableParameterCount, patches, false);
         }
 
+        if (!Equalizers.listEquals(original.parameters, modified.parameters, Equalizers::parameter)) {
+            output.visitParameters(DiffUtils.diff(
+                original.parameters != null ? original.parameters : Collections.emptyList(),
+                modified.parameters != null ? modified.parameters : Collections.emptyList(),
+                Equalizers::parameter
+            ));
+        }
+
         diffAttributable(output, original.attrs, modified.attrs);
 
         output.visitEnd();
