@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,7 +36,7 @@ public class ClassTest {
         ClassDiffer.diff(helloNode, worldNode, writer);
 
         final byte[] result = writer.toByteArray();
-//        System.out.println(new String(result, StandardCharsets.ISO_8859_1));
+        System.out.println(new String(result, StandardCharsets.ISO_8859_1));
 
         ClassPatcher.patch(helloNode, new DiffReader(result));
 

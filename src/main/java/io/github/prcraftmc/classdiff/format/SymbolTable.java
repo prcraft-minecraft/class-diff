@@ -93,6 +93,25 @@ public class SymbolTable {
         output.putShort(constantPoolCount).putByteArray(ReflectUtils.getByteVectorData(constantPool), 0, constantPool.size());
     }
 
+    public int computeBootstrapMethodsSize() {
+        if (bootstrapMethods != null) {
+            addConstantUtf8("BootstrapMethods");
+            return 8 + bootstrapMethods.size();
+        } else {
+            return 0;
+        }
+    }
+
+    void putBootstrapMethods(final ByteVector output) {
+        if (bootstrapMethods != null) {
+            output
+                .putShort(addConstantUtf8("BootstrapMethods"))
+                .putInt(bootstrapMethods.size() + 2)
+                .putShort(bootstrapMethodCount)
+                .putByteArray(ReflectUtils.getByteVectorData(bootstrapMethods), 0, bootstrapMethods.size());
+        }
+    }
+
     public Symbol addConstantInteger(int value) {
         return addConstantIntegerOrFloat(Symbol.CONSTANT_INTEGER_TAG, value);
     }
@@ -195,6 +214,16 @@ public class SymbolTable {
         Symbol bootstrapMethod = addBootstrapMethod(bootstrapMethodHandle, bootstrapMethodArguments);
         return addConstantDynamicOrInvokeDynamicReference(
             Symbol.CONSTANT_DYNAMIC_TAG, name, descriptor, bootstrapMethod.index);
+    }
+
+    public Symbol addConstantInvokeDynamic(
+        final String name,
+        final String descriptor,
+        final Handle bootstrapMethodHandle,
+        final Object... bootstrapMethodArguments) {
+        Symbol bootstrapMethod = addBootstrapMethod(bootstrapMethodHandle, bootstrapMethodArguments);
+        return addConstantDynamicOrInvokeDynamicReference(
+            Symbol.CONSTANT_INVOKE_DYNAMIC_TAG, name, descriptor, bootstrapMethod.index);
     }
 
     private Symbol addConstantDynamicOrInvokeDynamicReference(

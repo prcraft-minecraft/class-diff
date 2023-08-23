@@ -1,7 +1,10 @@
 package io.github.prcraftmc.classdiff.format;
 
 import com.github.difflib.patch.Patch;
+import io.github.prcraftmc.classdiff.util.LabelMap;
+import io.github.prcraftmc.classdiff.util.SyntheticLabelNode;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ParameterNode;
 import org.objectweb.asm.tree.TypeAnnotationNode;
@@ -67,6 +70,15 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
     public void visitMaxs(int maxStack, int maxLocals) {
         if (delegate != null) {
             delegate.visitMaxs(maxStack, maxLocals);
+        }
+    }
+
+    /**
+     * @apiNote These insns may not have annotations and may use {@link SyntheticLabelNode}s.
+     */
+    public void visitInsns(Patch<AbstractInsnNode> patch, LabelMap labelMap) {
+        if (delegate != null) {
+            delegate.visitInsns(patch, labelMap);
         }
     }
 

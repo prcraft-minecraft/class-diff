@@ -400,6 +400,12 @@ public class DiffReader {
                     case "Maxs":
                         visitor.visitMaxs(reader.readShort(), reader.readShort());
                         break;
+                    case "Insns":
+                        visitor.visitInsns(
+                            new PatchReader<>(this::readInsn).readPatch(reader, new InsnListAdapter(node.instructions)),
+                            new LabelMap(node.instructions)
+                        );
+                        break;
                     default:
                         if (attrName.startsWith("Custom")) {
                             if (reader.readByte() != 0) {
@@ -1059,5 +1065,352 @@ public class DiffReader {
 
     private Label createLabel(int bytecodeOffset, Label[] labels) {
         return readLabel(bytecodeOffset, labels);
+    }
+
+    private AbstractInsnNode readInsn(ByteReader reader) {
+        final int opcode = reader.readByte();
+        switch (opcode) {
+            case Opcodes.NOP:
+            case Opcodes.ACONST_NULL:
+            case Opcodes.ICONST_M1:
+            case Opcodes.ICONST_0:
+            case Opcodes.ICONST_1:
+            case Opcodes.ICONST_2:
+            case Opcodes.ICONST_3:
+            case Opcodes.ICONST_4:
+            case Opcodes.ICONST_5:
+            case Opcodes.LCONST_0:
+            case Opcodes.LCONST_1:
+            case Opcodes.FCONST_0:
+            case Opcodes.FCONST_1:
+            case Opcodes.FCONST_2:
+            case Opcodes.DCONST_0:
+            case Opcodes.DCONST_1:
+            case Opcodes.IALOAD:
+            case Opcodes.LALOAD:
+            case Opcodes.FALOAD:
+            case Opcodes.DALOAD:
+            case Opcodes.AALOAD:
+            case Opcodes.BALOAD:
+            case Opcodes.CALOAD:
+            case Opcodes.SALOAD:
+            case Opcodes.IASTORE:
+            case Opcodes.LASTORE:
+            case Opcodes.FASTORE:
+            case Opcodes.DASTORE:
+            case Opcodes.AASTORE:
+            case Opcodes.BASTORE:
+            case Opcodes.CASTORE:
+            case Opcodes.SASTORE:
+            case Opcodes.POP:
+            case Opcodes.POP2:
+            case Opcodes.DUP:
+            case Opcodes.DUP_X1:
+            case Opcodes.DUP_X2:
+            case Opcodes.DUP2:
+            case Opcodes.DUP2_X1:
+            case Opcodes.DUP2_X2:
+            case Opcodes.SWAP:
+            case Opcodes.IADD:
+            case Opcodes.LADD:
+            case Opcodes.FADD:
+            case Opcodes.DADD:
+            case Opcodes.ISUB:
+            case Opcodes.LSUB:
+            case Opcodes.FSUB:
+            case Opcodes.DSUB:
+            case Opcodes.IMUL:
+            case Opcodes.LMUL:
+            case Opcodes.FMUL:
+            case Opcodes.DMUL:
+            case Opcodes.IDIV:
+            case Opcodes.LDIV:
+            case Opcodes.FDIV:
+            case Opcodes.DDIV:
+            case Opcodes.IREM:
+            case Opcodes.LREM:
+            case Opcodes.FREM:
+            case Opcodes.DREM:
+            case Opcodes.INEG:
+            case Opcodes.LNEG:
+            case Opcodes.FNEG:
+            case Opcodes.DNEG:
+            case Opcodes.ISHL:
+            case Opcodes.LSHL:
+            case Opcodes.ISHR:
+            case Opcodes.LSHR:
+            case Opcodes.IUSHR:
+            case Opcodes.LUSHR:
+            case Opcodes.IAND:
+            case Opcodes.LAND:
+            case Opcodes.IOR:
+            case Opcodes.LOR:
+            case Opcodes.IXOR:
+            case Opcodes.LXOR:
+            case Opcodes.I2L:
+            case Opcodes.I2F:
+            case Opcodes.I2D:
+            case Opcodes.L2I:
+            case Opcodes.L2F:
+            case Opcodes.L2D:
+            case Opcodes.F2I:
+            case Opcodes.F2L:
+            case Opcodes.F2D:
+            case Opcodes.D2I:
+            case Opcodes.D2L:
+            case Opcodes.D2F:
+            case Opcodes.I2B:
+            case Opcodes.I2C:
+            case Opcodes.I2S:
+            case Opcodes.LCMP:
+            case Opcodes.FCMPL:
+            case Opcodes.FCMPG:
+            case Opcodes.DCMPL:
+            case Opcodes.DCMPG:
+            case Opcodes.IRETURN:
+            case Opcodes.LRETURN:
+            case Opcodes.FRETURN:
+            case Opcodes.DRETURN:
+            case Opcodes.ARETURN:
+            case Opcodes.RETURN:
+            case Opcodes.ARRAYLENGTH:
+            case Opcodes.ATHROW:
+            case Opcodes.MONITORENTER:
+            case Opcodes.MONITOREXIT:
+                return new InsnNode(opcode);
+            case DiffConstants.ILOAD_0:
+            case DiffConstants.ILOAD_1:
+            case DiffConstants.ILOAD_2:
+            case DiffConstants.ILOAD_3:
+            case DiffConstants.LLOAD_0:
+            case DiffConstants.LLOAD_1:
+            case DiffConstants.LLOAD_2:
+            case DiffConstants.LLOAD_3:
+            case DiffConstants.FLOAD_0:
+            case DiffConstants.FLOAD_1:
+            case DiffConstants.FLOAD_2:
+            case DiffConstants.FLOAD_3:
+            case DiffConstants.DLOAD_0:
+            case DiffConstants.DLOAD_1:
+            case DiffConstants.DLOAD_2:
+            case DiffConstants.DLOAD_3:
+            case DiffConstants.ALOAD_0:
+            case DiffConstants.ALOAD_1:
+            case DiffConstants.ALOAD_2:
+            case DiffConstants.ALOAD_3: {
+                final int id = opcode - DiffConstants.ILOAD_0;
+                return new VarInsnNode(Opcodes.ILOAD + (id >> 2), id & 0x3);
+            }
+            case Opcodes.IFEQ:
+            case Opcodes.IFNE:
+            case Opcodes.IFLT:
+            case Opcodes.IFGE:
+            case Opcodes.IFGT:
+            case Opcodes.IFLE:
+            case Opcodes.IF_ICMPEQ:
+            case Opcodes.IF_ICMPNE:
+            case Opcodes.IF_ICMPLT:
+            case Opcodes.IF_ICMPGE:
+            case Opcodes.IF_ICMPGT:
+            case Opcodes.IF_ICMPLE:
+            case Opcodes.IF_ACMPEQ:
+            case Opcodes.IF_ACMPNE:
+            case Opcodes.GOTO:
+            case Opcodes.JSR:
+            case Opcodes.IFNULL:
+            case Opcodes.IFNONNULL:
+                return new JumpInsnNode(opcode, new SyntheticLabelNode(reader.readShort()));
+            case DiffConstants.GOTO_W:
+            case DiffConstants.JSR_W:
+                return new JumpInsnNode(
+                    opcode - DiffConstants.GOTO_W + Opcodes.GOTO,
+                    new SyntheticLabelNode(reader.readInt())
+                );
+            case DiffConstants.WIDE: {
+                final int secondary = reader.readInt();
+                if (secondary == Opcodes.IINC) {
+                    return new IincInsnNode(reader.readShort(), (short)reader.readShort());
+                }
+                return new VarInsnNode(opcode, reader.readShort());
+            }
+            case Opcodes.TABLESWITCH: {
+                final LabelNode defaultLabel = new SyntheticLabelNode(reader.readInt());
+                final int low = reader.readInt();
+                final int high = reader.readInt();
+                final LabelNode[] table = new LabelNode[high - low + 1];
+                for (int i = 0; i < table.length; i++) {
+                    table[i] = new SyntheticLabelNode(reader.readInt());
+                }
+                return new TableSwitchInsnNode(low, high, defaultLabel, table);
+            }
+            case Opcodes.LOOKUPSWITCH: {
+                final LabelNode defaultLabel = new SyntheticLabelNode(reader.readInt());
+                final int numPairs = reader.readInt();
+                final int[] keys = new int[numPairs];
+                final LabelNode[] values = new LabelNode[numPairs];
+                for (int i = 0; i < numPairs; i++) {
+                    keys[i] = reader.readInt();
+                    values[i] = new SyntheticLabelNode(reader.readInt());
+                }
+                return new LookupSwitchInsnNode(defaultLabel, keys, values);
+            }
+            case Opcodes.ILOAD:
+            case Opcodes.LLOAD:
+            case Opcodes.FLOAD:
+            case Opcodes.DLOAD:
+            case Opcodes.ALOAD:
+            case Opcodes.ISTORE:
+            case Opcodes.LSTORE:
+            case Opcodes.FSTORE:
+            case Opcodes.DSTORE:
+            case Opcodes.ASTORE:
+            case Opcodes.RET:
+                return new VarInsnNode(opcode, reader.readByte());
+            case Opcodes.BIPUSH:
+            case Opcodes.NEWARRAY:
+                return new IntInsnNode(opcode, (byte)reader.readByte());
+            case Opcodes.SIPUSH:
+                return new IntInsnNode(opcode, (short)reader.readShort());
+            case Opcodes.LDC:
+                return new LdcInsnNode(readConst(reader.readByte()));
+            case DiffConstants.LDC_W:
+            case DiffConstants.LDC2_W:
+                if (opcode == DiffConstants.LDC2_W) {
+                    throw new IllegalArgumentException("ldc2_w instruction is unsupported. ClassDiff uses plain ldc or ldc_w here.");
+                }
+                return new LdcInsnNode(readConst(reader.readShort()));
+            case Opcodes.GETSTATIC:
+            case Opcodes.PUTSTATIC:
+            case Opcodes.GETFIELD:
+            case Opcodes.PUTFIELD:
+            case Opcodes.INVOKEVIRTUAL:
+            case Opcodes.INVOKESPECIAL:
+            case Opcodes.INVOKESTATIC:
+            case Opcodes.INVOKEINTERFACE: {
+                final int cpInfoOffset = constantOffsets[reader.readShort()];
+                final int nameAndTypeOffset = constantOffsets[readShort(cpInfoOffset + 2)];
+                final String owner = readClass(cpInfoOffset);
+                final String name = readUtf8(nameAndTypeOffset);
+                final String descriptor = readUtf8(nameAndTypeOffset + 2);
+                if (opcode < Opcodes.INVOKEVIRTUAL) {
+                    return new FieldInsnNode(opcode, owner, name, descriptor);
+                }
+                return new MethodInsnNode(
+                    opcode, owner, name, descriptor,
+                    contents[cpInfoOffset - 1] == Symbol.CONSTANT_INTERFACE_METHODREF_TAG
+                );
+            }
+            case Opcodes.INVOKEDYNAMIC: {
+                final int cpInfoOffset = constantOffsets[reader.readShort()];
+                final int nameAndTypeOffset = constantOffsets[readShort(cpInfoOffset + 2)];
+                final String name = readUtf8(nameAndTypeOffset);
+                final String descriptor = readUtf8(nameAndTypeOffset + 2);
+                int bsmOffset = bsmOffsets[readShort(cpInfoOffset)];
+                final Handle handle = (Handle)readConst(readShort(bsmOffset));
+                final Object[] bsmArgs = new Object[readShort(bsmOffset + 2)];
+                bsmOffset += 4;
+                for (int i = 0; i < bsmArgs.length; i++) {
+                    bsmArgs[i] = readConst(readShort(bsmOffset));
+                    bsmOffset += 2;
+                }
+                return new InvokeDynamicInsnNode(name, descriptor, handle, bsmArgs);
+            }
+            case Opcodes.NEW:
+            case Opcodes.ANEWARRAY:
+            case Opcodes.CHECKCAST:
+            case Opcodes.INSTANCEOF:
+                reader.skip(2);
+                return new TypeInsnNode(opcode, readClass(reader.pointer() - 2));
+            case Opcodes.IINC:
+                return new IincInsnNode(reader.readByte(), (byte)reader.readByte());
+            case Opcodes.MULTIANEWARRAY:
+                reader.skip(2);
+                return new MultiANewArrayInsnNode(readClass(reader.pointer() - 2), reader.readByte());
+            case 255: { // Special insn
+                final int specialType = reader.readByte();
+                switch (specialType) {
+                    case AbstractInsnNode.LABEL:
+                        return new LabelNode();
+                    case AbstractInsnNode.FRAME: {
+                        final int frameType = reader.readByte();
+                        final int numLocal, numStack;
+                        switch (frameType) {
+                            case (byte)Opcodes.F_NEW:
+                            case Opcodes.F_FULL:
+                                numLocal = reader.readShort();
+                                numStack = reader.readShort();
+                                return new FrameNode(
+                                    frameType,
+                                    numLocal, readFrameObjects(numLocal, reader),
+                                    numStack, readFrameObjects(numStack, reader)
+                                );
+                            case Opcodes.F_APPEND:
+                                numLocal = reader.readShort();
+                                return new FrameNode(
+                                    Opcodes.F_APPEND,
+                                    numLocal, readFrameObjects(numLocal, reader),
+                                    0, null
+                                );
+                            case Opcodes.F_CHOP:
+                                numLocal = reader.readShort();
+                                return new FrameNode(
+                                    Opcodes.F_CHOP,
+                                    numLocal, null,
+                                    0, null
+                                );
+                            case Opcodes.F_SAME:
+                                return new FrameNode(
+                                    Opcodes.F_SAME,
+                                    0, null,
+                                    0, null
+                                );
+                            case Opcodes.F_SAME1:
+                                return new FrameNode(
+                                    Opcodes.F_SAME1,
+                                    0, null,
+                                    0, readFrameObjects(1, reader)
+                                );
+                            default:
+                                throw new IllegalArgumentException("Unknown frame type " + frameType);
+                        }
+                    }
+                    case AbstractInsnNode.LINE:
+                        return new LineNumberNode(reader.readShort(), new SyntheticLabelNode(reader.readShort()));
+                    default:
+                        throw new IllegalArgumentException("Unknown special insn type " + specialType);
+                }
+            }
+            default:
+                throw new IllegalArgumentException("Unknown opcode 0x" + Integer.toHexString(opcode));
+        }
+    }
+
+    private Object[] readFrameObjects(int count, ByteReader reader) {
+        final Object[] result = new Object[count];
+        for (int i = 0; i < count; i++) {
+            result[i] = readFrameObject(reader);
+        }
+        return result;
+    }
+
+    private Object readFrameObject(ByteReader reader) {
+        final int tag = reader.readByte();
+        switch (tag) {
+            case Frame.ITEM_TOP:
+            case Frame.ITEM_INTEGER:
+            case Frame.ITEM_FLOAT:
+            case Frame.ITEM_DOUBLE:
+            case Frame.ITEM_LONG:
+            case Frame.ITEM_NULL:
+            case Frame.ITEM_UNINITIALIZED_THIS:
+                return tag;
+            case Frame.ITEM_OBJECT:
+                reader.skip(2);
+                return readClass(reader.pointer() - 2);
+            case Frame.ITEM_UNINITIALIZED:
+                return new SyntheticLabelNode(reader.readShort());
+            default:
+                throw new IllegalArgumentException("Unknown frame object type tag " + tag);
+        }
     }
 }

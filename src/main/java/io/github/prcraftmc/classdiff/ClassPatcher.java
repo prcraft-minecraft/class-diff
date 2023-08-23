@@ -4,9 +4,8 @@ import com.github.difflib.patch.Patch;
 import com.github.difflib.patch.PatchFailedException;
 import com.nothome.delta.GDiffPatcher;
 import io.github.prcraftmc.classdiff.format.*;
-import io.github.prcraftmc.classdiff.util.MemberName;
-import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import io.github.prcraftmc.classdiff.util.Util;
+import io.github.prcraftmc.classdiff.util.*;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
@@ -16,6 +15,7 @@ import org.objectweb.asm.tree.*;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.*;
+import java.util.function.UnaryOperator;
 
 public class ClassPatcher extends DiffVisitor {
     private final GDiffPatcher bytePatcher = new GDiffPatcher();
@@ -704,6 +704,69 @@ public class ClassPatcher extends DiffVisitor {
                 fMethodNode.maxStack = maxStack;
                 fMethodNode.maxLocals = maxLocals;
             }
+
+            @Override
+            public void visitInsns(Patch<AbstractInsnNode> patch, LabelMap labelMap) {
+                final Map<LabelNode, LabelNode> clonedLabels = new HashMap<>();
+                for (final LabelNode label : labelMap) {
+                    clonedLabels.put(label, new LabelNode());
+                }
+
+                final List<AbstractInsnNode> clonedInsns = new ArrayList<>(fMethodNode.instructions.size());
+                for (final AbstractInsnNode insn : fMethodNode.instructions) {
+                    clonedInsns.add(insn.clone(clonedLabels));
+                }
+
+                final InsnList newInsns = Util.asInsnList(Util.applyPatchUnchecked(patch, clonedInsns));
+
+                final LabelMap newLabelMap = new LabelMap(newInsns);
+                for (final AbstractInsnNode insn : newInsns) {
+                    switch (insn.getType()) {
+                        case AbstractInsnNode.JUMP_INSN: {
+                            final JumpInsnNode jumpInsn = (JumpInsnNode)insn;
+                            jumpInsn.label = deSynthesize(jumpInsn.label, newLabelMap);
+                            break;
+                        }
+                        case AbstractInsnNode.TABLESWITCH_INSN: {
+                            final TableSwitchInsnNode tableSwitchInsn = (TableSwitchInsnNode)insn;
+                            tableSwitchInsn.dflt = deSynthesize(tableSwitchInsn.dflt, newLabelMap);
+                            tableSwitchInsn.labels.replaceAll(label -> deSynthesize(label, newLabelMap));
+                            break;
+                        }
+                        case AbstractInsnNode.LOOKUPSWITCH_INSN: {
+                            final LookupSwitchInsnNode lookupSwitchInsn = (LookupSwitchInsnNode)insn;
+                            lookupSwitchInsn.dflt = deSynthesize(lookupSwitchInsn.dflt, newLabelMap);
+                            lookupSwitchInsn.labels.replaceAll(label -> deSynthesize(label, newLabelMap));
+                            break;
+                        }
+                        case AbstractInsnNode.LINE: {
+                            final LineNumberNode lineNumber = (LineNumberNode)insn;
+                            lineNumber.start = deSynthesize(lineNumber.start, newLabelMap);
+                            break;
+                        }
+                        case AbstractInsnNode.FRAME: {
+                            final FrameNode frame = (FrameNode)insn;
+                            if (frame.stack != null || frame.local != null) {
+                                final UnaryOperator<Object> replacer =
+                                    o -> o instanceof LabelNode ? deSynthesize((LabelNode)o, newLabelMap) : o;
+                                if (frame.stack != null) {
+                                    frame.stack.replaceAll(replacer);
+                                }
+                                if (frame.local != null) {
+                                    frame.local.replaceAll(replacer);
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                fMethodNode.instructions = newInsns;
+            }
         };
+    }
+
+    private static LabelNode deSynthesize(LabelNode label, LabelMap labelMap) {
+        return label instanceof SyntheticLabelNode ? labelMap.byId(((SyntheticLabelNode)label).getId()) : label;
     }
 }

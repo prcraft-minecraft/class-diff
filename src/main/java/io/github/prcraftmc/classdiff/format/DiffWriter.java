@@ -1,11 +1,13 @@
 package io.github.prcraftmc.classdiff.format;
 
 import com.github.difflib.patch.Patch;
+import io.github.prcraftmc.classdiff.util.LabelMap;
 import io.github.prcraftmc.classdiff.util.MemberName;
 import io.github.prcraftmc.classdiff.util.PatchWriter;
 import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ByteVector;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.util.*;
@@ -628,6 +630,17 @@ public class DiffWriter extends DiffVisitor {
             }
 
             @Override
+            public void visitInsns(Patch<AbstractInsnNode> patch, LabelMap labelMap) {
+                super.visitInsns(patch, labelMap);
+
+                beginAttr("Insns");
+                new PatchWriter<AbstractInsnNode>(
+                    (vec, value) -> writeInsn(vec, value, labelMap)
+                ).write(vector, patch);
+                endAttr();
+            }
+
+            @Override
             public void visitEnd() {
                 super.visitEnd();
 
@@ -662,6 +675,9 @@ public class DiffWriter extends DiffVisitor {
         result.putShort(diffVersion);
 
         int attributeCount = customAttributes.size();
+        if (symbolTable.computeBootstrapMethodsSize() > 0) {
+            attributeCount++;
+        }
         if (source != 0 || debug != 0) {
             symbolTable.addConstantUtf8("Source");
             attributeCount++;
@@ -726,6 +742,7 @@ public class DiffWriter extends DiffVisitor {
         }
 
         result.putShort(attributeCount);
+        symbolTable.putBootstrapMethods(result);
         if (source != 0 || debug != 0) {
             result.putShort(symbolTable.addConstantUtf8("Source")).putInt(4);
             result.putShort(source).putShort(debug);
@@ -825,5 +842,188 @@ public class DiffWriter extends DiffVisitor {
         }
 
         return Arrays.copyOf(ReflectUtils.getByteVectorData(result), result.size());
+    }
+
+    private void writeInsn(ByteVector vector, AbstractInsnNode insn, LabelMap labelMap) {
+        final int opcode = insn.getOpcode();
+        switch (insn.getType()) {
+            case AbstractInsnNode.INSN:
+                vector.putByte(opcode);
+                break;
+            case AbstractInsnNode.VAR_INSN: {
+                final VarInsnNode varInsn = (VarInsnNode)insn;
+                if (varInsn.var < 4 && opcode != Opcodes.RET) {
+                    if (opcode < Opcodes.ISTORE) {
+                        vector.putByte(DiffConstants.ILOAD_0 + ((opcode - Opcodes.ILOAD) << 2) + varInsn.var);
+                    } else {
+                        vector.putByte(DiffConstants.ISTORE_0 + ((opcode - Opcodes.ISTORE) << 2) + varInsn.var);
+                    }
+                } else if (varInsn.var >= 256) {
+                    vector.putByte(DiffConstants.WIDE).putByte(opcode).putShort(varInsn.var);
+                } else {
+                    vector.putByte(opcode).putByte(varInsn.var);
+                }
+                break;
+            }
+            case AbstractInsnNode.JUMP_INSN: {
+                final JumpInsnNode jumpInsn = (JumpInsnNode)insn;
+                final int target = labelMap.getId(jumpInsn.label);
+                if (target > 0xffff) {
+                    vector.putByte(opcode - Opcodes.GOTO + DiffConstants.GOTO_W).putInt(target);
+                } else {
+                    vector.putByte(opcode).putShort(target);
+                }
+                break;
+            }
+            case AbstractInsnNode.TABLESWITCH_INSN: {
+                final TableSwitchInsnNode tableSwitchInsn = (TableSwitchInsnNode)insn;
+                vector.putByte(opcode);
+                vector.putInt(labelMap.getId(tableSwitchInsn.dflt));
+                vector.putInt(tableSwitchInsn.min);
+                vector.putInt(tableSwitchInsn.max);
+                for (final LabelNode label : tableSwitchInsn.labels) {
+                    vector.putInt(labelMap.getId(label));
+                }
+                break;
+            }
+            case AbstractInsnNode.LOOKUPSWITCH_INSN: {
+                final LookupSwitchInsnNode lookupSwitchInsn = (LookupSwitchInsnNode)insn;
+                vector.putByte(opcode);
+                vector.putInt(labelMap.getId(lookupSwitchInsn.dflt));
+                final int numPairs = lookupSwitchInsn.keys.size();
+                vector.putInt(numPairs);
+                for (int i = 0; i < numPairs; i++) {
+                    vector.putInt(lookupSwitchInsn.keys.get(i));
+                    vector.putInt(labelMap.getId(lookupSwitchInsn.labels.get(i)));
+                }
+                break;
+            }
+            case AbstractInsnNode.INT_INSN: {
+                final IntInsnNode intInsn = (IntInsnNode)insn;
+                vector.putByte(opcode);
+                if (opcode == Opcodes.SIPUSH) {
+                    vector.putShort(intInsn.operand);
+                } else {
+                    vector.putByte(intInsn.operand);
+                }
+                break;
+            }
+            case AbstractInsnNode.LDC_INSN: {
+                final LdcInsnNode ldcInsn = (LdcInsnNode)insn;
+                final int index = symbolTable.addConstant(ldcInsn.cst).index;
+                if (index > 0xff) {
+                    vector.putByte(DiffConstants.LDC_W).putShort(index);
+                } else {
+                    vector.putByte(opcode).putByte(index);
+                }
+                break;
+            }
+            case AbstractInsnNode.FIELD_INSN: {
+                final FieldInsnNode fieldInsn = (FieldInsnNode)insn;
+                vector.putByte(opcode).putShort(symbolTable.addConstantFieldref(
+                    fieldInsn.owner, fieldInsn.name, fieldInsn.desc
+                ).index);
+                break;
+            }
+            case AbstractInsnNode.METHOD_INSN: {
+                final MethodInsnNode methodInsn = (MethodInsnNode)insn;
+                vector.putByte(opcode).putShort(symbolTable.addConstantMethodref(
+                    methodInsn.owner, methodInsn.name, methodInsn.desc, methodInsn.itf
+                ).index);
+                break;
+            }
+            case AbstractInsnNode.INVOKE_DYNAMIC_INSN: {
+                final InvokeDynamicInsnNode invokeDynamicInsn = (InvokeDynamicInsnNode)insn;
+                vector.putByte(opcode).putShort(symbolTable.addConstantInvokeDynamic(
+                    invokeDynamicInsn.name, invokeDynamicInsn.desc, invokeDynamicInsn.bsm, invokeDynamicInsn.bsmArgs
+                ).index);
+                break;
+            }
+            case AbstractInsnNode.TYPE_INSN: {
+                final TypeInsnNode typeInsn = (TypeInsnNode)insn;
+                vector.putByte(opcode).putShort(symbolTable.addConstantClass(typeInsn.desc).index);
+                break;
+            }
+            case AbstractInsnNode.IINC_INSN: {
+                final IincInsnNode iincInsn = (IincInsnNode)insn;
+                if (iincInsn.var > 255 || iincInsn.incr > 127 || iincInsn.incr < -128) {
+                    vector.putByte(DiffConstants.WIDE).putByte(opcode).putShort(iincInsn.var).putShort(iincInsn.incr);
+                } else {
+                    vector.putByte(opcode).putByte(iincInsn.var).putByte(iincInsn.incr);
+                }
+                break;
+            }
+            case AbstractInsnNode.MULTIANEWARRAY_INSN: {
+                final MultiANewArrayInsnNode multiANewArrayInsn = (MultiANewArrayInsnNode)insn;
+                vector.putByte(opcode)
+                    .putShort(symbolTable.addConstantClass(multiANewArrayInsn.desc).index)
+                    .putByte(multiANewArrayInsn.dims);
+                break;
+            }
+            case AbstractInsnNode.LABEL:
+            case AbstractInsnNode.FRAME:
+            case AbstractInsnNode.LINE: {
+                final int specialType = insn.getType();
+                vector.putByte(255).putByte(specialType);
+                switch (specialType) {
+                    case AbstractInsnNode.LABEL:
+                        break;
+                    case AbstractInsnNode.FRAME: {
+                        final FrameNode frame = (FrameNode)insn;
+                        vector.putByte(frame.type);
+                        switch (frame.type) {
+                            case Opcodes.F_NEW:
+                            case Opcodes.F_FULL:
+                                vector.putShort(frame.local.size());
+                                vector.putShort(frame.stack.size());
+                                writeFrameObjects(frame.local, vector, labelMap);
+                                writeFrameObjects(frame.stack, vector, labelMap);
+                                break;
+                            case Opcodes.F_APPEND:
+                                vector.putShort(frame.local.size());
+                                writeFrameObjects(frame.local, vector, labelMap);
+                                break;
+                            case Opcodes.F_CHOP:
+                                vector.putShort(frame.local.size());
+                                break;
+                            case Opcodes.F_SAME:
+                                break;
+                            case Opcodes.F_SAME1:
+                                writeFrameObject(frame.stack.get(0), vector, labelMap);
+                                break;
+                            default:
+                                throw new IllegalArgumentException("Unknown frame type " + frame.type);
+                        }
+                        break;
+                    }
+                    case AbstractInsnNode.LINE: {
+                        final LineNumberNode lineNumber = (LineNumberNode)insn;
+                        vector.putShort(lineNumber.line).putShort(labelMap.getId(lineNumber.start));
+                        break;
+                    }
+                }
+                break;
+            }
+            default:
+                throw new IllegalArgumentException("Unknown insn type " + insn.getType());
+        }
+    }
+
+    private void writeFrameObjects(List<Object> frameObjects, ByteVector vector, LabelMap labelMap) {
+        for (final Object frameObject : frameObjects) {
+            writeFrameObject(frameObject, vector, labelMap);
+        }
+    }
+
+    private void writeFrameObject(Object frameObject, ByteVector vector, LabelMap labelMap) {
+        if (frameObject instanceof Integer) {
+            vector.putByte((Integer)frameObject);
+        } else if (frameObject instanceof String) {
+            vector.putByte(Frame.ITEM_OBJECT).putShort(symbolTable.addConstantClass((String)frameObject).index);
+        } else if (frameObject instanceof LabelNode) {
+            vector.putByte(Frame.ITEM_UNINITIALIZED).putShort(labelMap.getId((LabelNode)frameObject));
+        } else {
+            throw new IllegalArgumentException("Unknown frame object type: " + frameObject.getClass());
+        }
     }
 }

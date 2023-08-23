@@ -1,11 +1,15 @@
 package io.github.prcraftmc.classdiff.util;
 
+import com.github.difflib.patch.AbstractDelta;
+import com.github.difflib.patch.PatchFailedException;
 import org.jetbrains.annotations.ApiStatus;
 import org.objectweb.asm.*;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.List;
 
 @ApiStatus.Internal
 public class ReflectUtils {
@@ -21,6 +25,8 @@ public class ReflectUtils {
     private static final Method TYPE_PATH_PUT;
 
     private static final Method TYPE_REFERENCE_PUT_TARGET;
+
+    private static final Method ABSTRACT_DELTA_APPLY_TO;
 
     static {
         try {
@@ -44,6 +50,9 @@ public class ReflectUtils {
 
             TYPE_REFERENCE_PUT_TARGET = TypeReference.class.getDeclaredMethod("putTarget", int.class, ByteVector.class);
             TYPE_REFERENCE_PUT_TARGET.setAccessible(true);
+
+            ABSTRACT_DELTA_APPLY_TO = AbstractDelta.class.getDeclaredMethod("applyTo", List.class);
+            ABSTRACT_DELTA_APPLY_TO.setAccessible(true);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -116,6 +125,19 @@ public class ReflectUtils {
     public static void invokeTypeReferencePutTarget(int targetTypeAndInfo, ByteVector output) {
         try {
             TYPE_REFERENCE_PUT_TARGET.invoke(null, targetTypeAndInfo, output);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    public static <T> void invokeAbstractDeltaApplyTo(AbstractDelta<T> delta, List<T> target) throws PatchFailedException {
+        try {
+            ABSTRACT_DELTA_APPLY_TO.invoke(delta, target);
+        } catch (InvocationTargetException e) {
+            if (e.getCause() instanceof PatchFailedException) {
+                throw (PatchFailedException)e.getCause();
+            }
+            throw new RuntimeException(e);
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }

@@ -4,10 +4,8 @@ import com.github.difflib.DiffUtils;
 import com.github.difflib.patch.Patch;
 import com.nothome.delta.Delta;
 import io.github.prcraftmc.classdiff.format.*;
-import io.github.prcraftmc.classdiff.util.Equalizers;
-import io.github.prcraftmc.classdiff.util.MemberName;
-import io.github.prcraftmc.classdiff.util.ReflectUtils;
 import io.github.prcraftmc.classdiff.util.Util;
+import io.github.prcraftmc.classdiff.util.*;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Type;
@@ -466,6 +464,14 @@ public class ClassDiffer {
                     if (node.maxStack != 0 || node.maxLocals != 0) {
                         visitor.visitMaxs(node.maxStack, node.maxLocals);
                     }
+                    final LabelMap labelMap = new LabelMap(node.instructions);
+                    if (node.instructions.size() > 0) {
+                        visitor.visitInsns(DiffUtils.diff(
+                            Collections.emptyList(),
+                            new InsnListAdapter(node.instructions),
+                            Equalizers.insnEqualizer(LabelMap.EMPTY, labelMap)
+                        ), labelMap);
+                    }
                     visitor.visitEnd();
                 }
             }
@@ -539,6 +545,17 @@ public class ClassDiffer {
 
         if (modified.maxStack != original.maxStack || modified.maxLocals != original.maxLocals) {
             output.visitMaxs(modified.maxStack, modified.maxLocals);
+        }
+
+        final LabelMap originalMap = new LabelMap(original.instructions);
+        final LabelMap modifiedMap = new LabelMap(modified.instructions);
+
+        if (!Equalizers.insnList(original.instructions, modified.instructions, originalMap, modifiedMap)) {
+            output.visitInsns(DiffUtils.diff(
+                new InsnListAdapter(original.instructions),
+                new InsnListAdapter(modified.instructions),
+                Equalizers.insnEqualizer(originalMap, modifiedMap)
+            ), modifiedMap);
         }
 
         output.visitEnd();
