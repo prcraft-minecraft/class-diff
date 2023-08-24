@@ -20,8 +20,6 @@ import java.util.Enumeration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ClassTest {
-    private static final String PACKAGE = '/' + ClassTest.class.getPackageName().replace('.', '/') + '/';
-
     private void test(String file1, String file2) throws IOException {
         test(ClassTest.class.getResourceAsStream(file1), ClassTest.class.getResourceAsStream(file2));
     }
@@ -54,12 +52,12 @@ public class ClassTest {
 
     @Test
     public void test1() throws IOException {
-        test(PACKAGE + "test1/Hello.class", PACKAGE + "test1/World.class");
+        test("test1/Hello.class", "test1/World.class");
     }
 
     @Test
     public void test2() throws IOException {
-        test(PACKAGE + "test2/Hello.class", PACKAGE + "test2/World.class");
+        test("test2/Hello.class", "test2/World.class");
     }
 
     @Test
@@ -73,21 +71,31 @@ public class ClassTest {
 
     @Test
     public void test4() throws IOException {
-        test(PACKAGE + "test4/Hello.class", PACKAGE + "test4/World.class");
+        test("test4/Hello.class", "test4/World.class");
     }
 
     @Test
     public void test5() throws IOException {
-        test(PACKAGE + "test5/Hello.class", PACKAGE + "test5/World.class");
+        test("test5/Hello.class", "test5/World.class");
     }
 
     @Test
     public void test6() throws IOException {
-        test(PACKAGE + "test6/Hello.class", PACKAGE + "test6/World.class");
+        test("test6/Hello.class", "test6/World.class");
     }
 
     @Test
     public void test7() throws IOException {
-        test(PACKAGE + "test7/Hello.class", PACKAGE + "test7/World.class");
+        test("test7/Hello.class", "test7/World.class");
+    }
+
+    @Test
+    public void test8() throws IOException {
+        test("/java/lang/String.class", "/java/lang/Class.class");
+    }
+
+    @Test
+    public void test9() throws IOException {
+        test("/java/lang/Integer.class", "/java/lang/Float.class");
     }
 }

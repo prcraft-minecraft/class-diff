@@ -118,8 +118,8 @@ public class DiffWriter extends DiffVisitor {
 
         new PatchWriter<InnerClassNode>((vec, value) ->
             vec.putShort(symbolTable.addConstantClass(value.name).index)
-                .putShort(symbolTable.addConstantClass(value.outerName).index)
-                .putShort(symbolTable.addConstantUtf8(value.innerName))
+                .putShort(value.outerName != null ? symbolTable.addConstantClass(value.outerName).index : 0)
+                .putShort(value.innerName != null ? symbolTable.addConstantUtf8(value.innerName) : 0)
                 .putShort(value.access)
         ).write(innerClasses = new ByteVector(), patch);
     }

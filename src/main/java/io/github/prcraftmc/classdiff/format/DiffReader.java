@@ -1027,7 +1027,7 @@ public class DiffReader {
         final int deltaCount = readShort(startPos + 14);
         int offset = startPos + 16;
         for (int i = 0; i < deltaCount; i++) {
-            switch (DeltaType.values()[contents[offset]]) {
+            switch (DeltaType.values()[contents[offset++]]) {
                 case CHANGE:
                     offset += 6 + 2 * readShort(offset + 4);
                     break;
@@ -1284,6 +1284,29 @@ public class DiffReader {
             case DiffConstants.ALOAD_3: {
                 final int id = opcode - DiffConstants.ILOAD_0;
                 return new VarInsnNode(Opcodes.ILOAD + (id >> 2), id & 0x3);
+            }
+            case DiffConstants.ISTORE_0:
+            case DiffConstants.ISTORE_1:
+            case DiffConstants.ISTORE_2:
+            case DiffConstants.ISTORE_3:
+            case DiffConstants.LSTORE_0:
+            case DiffConstants.LSTORE_1:
+            case DiffConstants.LSTORE_2:
+            case DiffConstants.LSTORE_3:
+            case DiffConstants.FSTORE_0:
+            case DiffConstants.FSTORE_1:
+            case DiffConstants.FSTORE_2:
+            case DiffConstants.FSTORE_3:
+            case DiffConstants.DSTORE_0:
+            case DiffConstants.DSTORE_1:
+            case DiffConstants.DSTORE_2:
+            case DiffConstants.DSTORE_3:
+            case DiffConstants.ASTORE_0:
+            case DiffConstants.ASTORE_1:
+            case DiffConstants.ASTORE_2:
+            case DiffConstants.ASTORE_3: {
+                final int id = opcode - DiffConstants.ISTORE_0;
+                return new VarInsnNode(Opcodes.ISTORE + (id >> 2), id & 0x3);
             }
             case Opcodes.IFEQ:
             case Opcodes.IFNE:
