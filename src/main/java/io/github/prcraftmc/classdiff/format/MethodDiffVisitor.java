@@ -4,10 +4,7 @@ import com.github.difflib.patch.Patch;
 import io.github.prcraftmc.classdiff.util.LabelMap;
 import io.github.prcraftmc.classdiff.util.SyntheticLabelNode;
 import org.jetbrains.annotations.Nullable;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.ParameterNode;
-import org.objectweb.asm.tree.TypeAnnotationNode;
+import org.objectweb.asm.tree.*;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -80,6 +77,12 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
     public void visitInsns(Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
         if (delegate != null) {
             delegate.visitInsns(patch, patchedLabelMap);
+        }
+    }
+
+    public void visitLocalVariables(List<LocalVariableNode> newLocals, @Nullable LabelMap useMap) {
+        if (delegate != null) {
+            delegate.visitLocalVariables(newLocals, useMap);
         }
     }
 

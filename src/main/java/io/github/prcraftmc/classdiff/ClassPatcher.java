@@ -595,6 +595,9 @@ public class ClassPatcher extends DiffVisitor {
 
         final MethodNode fMethodNode = methodNode;
         return new MethodDiffVisitor() {
+            boolean insnsFrozen;
+            LabelMap insnsLabelMap;
+
             @Override
             public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
                 try {
@@ -708,6 +711,10 @@ public class ClassPatcher extends DiffVisitor {
 
             @Override
             public void visitInsns(Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
+                if (insnsFrozen) {
+                    throw new IllegalStateException("Cannot call ClassPatcher.visitMethod().visitInsns() after freeze");
+                }
+
                 final Map<LabelNode, LabelNode> clonedLabels = new HashMap<>();
                 for (final AbstractInsnNode insn : fMethodNode.instructions) {
                     if (insn instanceof LabelNode) {
@@ -723,35 +730,36 @@ public class ClassPatcher extends DiffVisitor {
                 final InsnList newInsns = Util.asInsnList(Util.applyPatchUnchecked(patch, clonedInsns));
 
                 final LabelMap newLabelMap = new LabelMap(newInsns);
+                insnsLabelMap = newLabelMap;
                 for (final AbstractInsnNode insn : newInsns) {
                     switch (insn.getType()) {
                         case AbstractInsnNode.JUMP_INSN: {
                             final JumpInsnNode jumpInsn = (JumpInsnNode)insn;
-                            jumpInsn.label = deSynthesize(jumpInsn.label, newLabelMap);
+                            jumpInsn.label = newLabelMap.resolve(jumpInsn.label);
                             break;
                         }
                         case AbstractInsnNode.TABLESWITCH_INSN: {
                             final TableSwitchInsnNode tableSwitchInsn = (TableSwitchInsnNode)insn;
-                            tableSwitchInsn.dflt = deSynthesize(tableSwitchInsn.dflt, newLabelMap);
-                            tableSwitchInsn.labels.replaceAll(label -> deSynthesize(label, newLabelMap));
+                            tableSwitchInsn.dflt = newLabelMap.resolve(tableSwitchInsn.dflt);
+                            tableSwitchInsn.labels.replaceAll(newLabelMap::resolve);
                             break;
                         }
                         case AbstractInsnNode.LOOKUPSWITCH_INSN: {
                             final LookupSwitchInsnNode lookupSwitchInsn = (LookupSwitchInsnNode)insn;
-                            lookupSwitchInsn.dflt = deSynthesize(lookupSwitchInsn.dflt, newLabelMap);
-                            lookupSwitchInsn.labels.replaceAll(label -> deSynthesize(label, newLabelMap));
+                            lookupSwitchInsn.dflt = newLabelMap.resolve(lookupSwitchInsn.dflt);
+                            lookupSwitchInsn.labels.replaceAll(newLabelMap::resolve);
                             break;
                         }
                         case AbstractInsnNode.LINE: {
                             final LineNumberNode lineNumber = (LineNumberNode)insn;
-                            lineNumber.start = deSynthesize(lineNumber.start, newLabelMap);
+                            lineNumber.start = newLabelMap.resolve(lineNumber.start);
                             break;
                         }
                         case AbstractInsnNode.FRAME: {
                             final FrameNode frame = (FrameNode)insn;
                             if (frame.stack != null || frame.local != null) {
                                 final UnaryOperator<Object> replacer =
-                                    o -> o instanceof LabelNode ? deSynthesize((LabelNode)o, newLabelMap) : o;
+                                    o -> o instanceof LabelNode ? newLabelMap.resolve((LabelNode)o) : o;
                                 if (frame.stack != null) {
                                     frame.stack.replaceAll(replacer);
                                 }
@@ -766,10 +774,36 @@ public class ClassPatcher extends DiffVisitor {
 
                 fMethodNode.instructions = newInsns;
             }
-        };
-    }
 
-    private static LabelNode deSynthesize(LabelNode label, LabelMap labelMap) {
-        return label instanceof SyntheticLabelNode ? labelMap.byId(((SyntheticLabelNode)label).getId()) : label;
+            @Override
+            public void visitLocalVariables(List<LocalVariableNode> newLocals, @Nullable LabelMap useMap) {
+                if (useMap == null) {
+                    useMap = insnsLabelMap;
+                }
+                if (useMap == null) {
+                    if (newLocals.stream().anyMatch(
+                        l -> l.start instanceof SyntheticLabelNode || l.end instanceof SyntheticLabelNode
+                    )) {
+                        insnsFrozen = true;
+                        useMap = new LabelMap(fMethodNode.instructions);
+                    } else {
+                        useMap = new LabelMap();
+                    }
+                }
+
+                final List<LocalVariableNode> output = new ArrayList<>(newLocals.size());
+                for (final LocalVariableNode local : newLocals) {
+                    output.add(new LocalVariableNode(
+                        local.name,
+                        local.desc,
+                        local.signature,
+                        useMap.resolve(local.start),
+                        useMap.resolve(local.end),
+                        local.index
+                    ));
+                }
+                fMethodNode.localVariables = output;
+            }
+        };
     }
 }

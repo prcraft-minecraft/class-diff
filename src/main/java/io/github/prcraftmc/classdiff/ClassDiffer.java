@@ -470,7 +470,10 @@ public class ClassDiffer {
                             Collections.emptyList(),
                             new InsnListAdapter(node.instructions),
                             Equalizers.insnEqualizer(LabelMap.EMPTY, labelMap)
-                        ), Util.lazy(() -> new LabelMap(node.instructions)));
+                        ), () -> labelMap);
+                    }
+                    if (!node.localVariables.isEmpty()) {
+                        visitor.visitLocalVariables(node.localVariables, labelMap);
                     }
                     visitor.visitEnd();
                 }
@@ -556,6 +559,13 @@ public class ClassDiffer {
                 new InsnListAdapter(modified.instructions),
                 Equalizers.insnEqualizer(originalMap, modifiedMap)
             ), () -> modifiedMap);
+        }
+
+        if (!Equalizers.listEquals(
+            original.localVariables, modified.localVariables,
+            Equalizers.localVariableEqualizer(originalMap, modifiedMap)
+        )) {
+            output.visitLocalVariables(modified.localVariables, modifiedMap);
         }
 
         output.visitEnd();

@@ -1,10 +1,7 @@
 package io.github.prcraftmc.classdiff.format;
 
 import com.github.difflib.patch.Patch;
-import io.github.prcraftmc.classdiff.util.LabelMap;
-import io.github.prcraftmc.classdiff.util.MemberName;
-import io.github.prcraftmc.classdiff.util.PatchWriter;
-import io.github.prcraftmc.classdiff.util.ReflectUtils;
+import io.github.prcraftmc.classdiff.util.*;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ByteVector;
 import org.objectweb.asm.Opcodes;
@@ -550,6 +547,8 @@ public class DiffWriter extends DiffVisitor {
             int sizeIndex;
             int attributeCount;
 
+            LabelMap labelMap;
+
             @Override
             public void visitAnnotations(Patch<AnnotationNode> patch, boolean visible) {
                 super.visitAnnotations(patch, visible);
@@ -635,11 +634,43 @@ public class DiffWriter extends DiffVisitor {
                 super.visitInsns(patch, patchedLabelMap);
 
                 beginAttr("Insns");
-                final LabelMap realLabelMap = patchedLabelMap.get();
+                labelMap = patchedLabelMap.get();
                 new PatchWriter<AbstractInsnNode>(
-                    (vec, value) -> writeInsn(vec, value, realLabelMap)
+                    (vec, value) -> writeInsn(vec, value, labelMap)
                 ).write(vector, patch);
                 endAttr();
+            }
+
+            @Override
+            public void visitLocalVariables(List<LocalVariableNode> newLocals, @Nullable LabelMap useMap) {
+                if (useMap == null && labelMap == null && !newLocals.stream().allMatch(
+                    l -> l.start instanceof SyntheticLabelNode && l.end instanceof SyntheticLabelNode
+                )) {
+                    throw new IllegalStateException(
+                        "Cannot call DiffWriter.visitLocalVariables() unless one of the following conditions is met:\n" +
+                            "  + useMap is not null\n" +
+                            "  + visitInsns has been called first\n" +
+                            "  + All labels used in the local variables are synthetic"
+                    );
+                }
+
+                super.visitLocalVariables(newLocals, useMap);
+
+                if (useMap == null) {
+                    useMap = labelMap != null ? labelMap : new LabelMap();
+                }
+
+                vector.putShort(symbolTable.addConstantUtf8("LocalVariables")).putInt(2 + 12 * newLocals.size());
+                vector.putShort(newLocals.size());
+                for (final LocalVariableNode variable : newLocals) {
+                    vector.putShort(symbolTable.addConstantUtf8(variable.name));
+                    vector.putShort(symbolTable.addConstantUtf8(variable.desc));
+                    vector.putShort(variable.signature != null ? symbolTable.addConstantUtf8(variable.signature) : 0);
+                    vector.putShort(useMap.getId(variable.start));
+                    vector.putShort(useMap.getId(variable.end));
+                    vector.putShort(variable.index);
+                }
+                attributeCount++;
             }
 
             @Override

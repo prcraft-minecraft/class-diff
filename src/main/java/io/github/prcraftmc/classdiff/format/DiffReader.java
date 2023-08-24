@@ -320,8 +320,6 @@ public class DiffReader {
         );
         final MethodDiffVisitor visitor = diffVisitor.visitMethod(access, name, descriptor, signature, exceptions);
 
-        final LabelMap labelMap = new LabelMap(node.instructions);
-
         final int attrCount = reader.readShort();
         for (int i = 0; i < attrCount; i++) {
             reader.skip(2);
@@ -422,13 +420,23 @@ public class DiffReader {
                         }));
                         break;
                     }
-//                    case "LocalVariables":
-//                        visitor.visitLocalVariables(
-//                            new PatchReader<>(reader1 -> {
-//
-//                            })
-//                        );
-//                        break;
+                    case "LocalVariables": {
+                        final int nLocals = reader.readShort();
+                        final List<LocalVariableNode> locals = new ArrayList<>(nLocals);
+                        for (int j = 0; j < nLocals; j++) {
+                            reader.skip(6);
+                            locals.add(new LocalVariableNode(
+                                readUtf8(reader.pointer() - 6),
+                                readUtf8(reader.pointer() - 4),
+                                readUtf8(reader.pointer() - 2),
+                                new SyntheticLabelNode(reader.readShort()),
+                                new SyntheticLabelNode(reader.readShort()),
+                                reader.readShort()
+                            ));
+                        }
+                        visitor.visitLocalVariables(locals, null);
+                        break;
+                    }
                     default:
                         if (attrName.startsWith("Custom")) {
                             if (reader.readByte() != 0) {

@@ -46,6 +46,13 @@ public class LabelMap implements Iterable<LabelNode> {
         return toId.get(label);
     }
 
+    public LabelNode resolve(LabelNode label) {
+        if (label instanceof SyntheticLabelNode) {
+            return byId[((SyntheticLabelNode)label).getId()];
+        }
+        return label;
+    }
+
     @Override
     public Iterator<LabelNode> iterator() {
         return new Iterator<LabelNode>() {
