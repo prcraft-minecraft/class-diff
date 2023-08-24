@@ -762,6 +762,19 @@ public class DiffWriter extends DiffVisitor {
             }
 
             @Override
+            public void visitInsnAnnotations(int[] indices, List<TypeAnnotationNode> annotations, boolean visible) {
+                super.visitInsnAnnotations(indices, annotations, visible);
+
+                beginAttr((visible ? "Visible" : "Invisible") + "InsnAnnotations");
+                vector.putShort(indices.length);
+                for (int i = 0; i < indices.length; i++) {
+                    vector.putShort(indices[i]);
+                    writeTypeAnnotation(vector, annotations.get(i), false);
+                }
+                endAttr();
+            }
+
+            @Override
             public void visitEnd() {
                 super.visitEnd();
 

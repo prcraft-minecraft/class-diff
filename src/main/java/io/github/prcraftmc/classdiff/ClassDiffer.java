@@ -484,6 +484,8 @@ public class ClassDiffer {
                     if (!Util.isNullOrEmpty(node.visibleLocalVariableAnnotations)) {
                         visitor.visitLocalVariableAnnotations(node.visibleLocalVariableAnnotations, true, labelMap);
                     }
+                    visitInsnAnnotations(node.instructions, visitor, false);
+                    visitInsnAnnotations(node.instructions, visitor, true);
                     visitor.visitEnd();
                 }
             }
@@ -592,7 +594,32 @@ public class ClassDiffer {
             output.visitLocalVariableAnnotations(modified.visibleLocalVariableAnnotations, true, modifiedMap);
         }
 
+        visitInsnAnnotations(modified.instructions, output, false);
+        visitInsnAnnotations(modified.instructions, output, true);
+
         output.visitEnd();
+    }
+
+    private void visitInsnAnnotations(InsnList insnList, MethodDiffVisitor visitor, boolean visible) {
+        List<Integer> indices = null;
+        List<TypeAnnotationNode> annotations = null;
+        int i = -1;
+        for (final AbstractInsnNode insn : insnList) {
+            i++;
+            final List<TypeAnnotationNode> insnAnnotations = visible ? insn.visibleTypeAnnotations : insn.invisibleTypeAnnotations;
+            if (insnAnnotations == null) continue;
+            if (indices == null) {
+                indices = new ArrayList<>();
+                annotations = new ArrayList<>();
+            }
+            for (final TypeAnnotationNode annotation : insnAnnotations) {
+                indices.add(i);
+                annotations.add(annotation);
+            }
+        }
+        if (indices != null) {
+            visitor.visitInsnAnnotations(indices.stream().mapToInt(Integer::intValue).toArray(), annotations, visible);
+        }
     }
 
     private void diffAnnotated(

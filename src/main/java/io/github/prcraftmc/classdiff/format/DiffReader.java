@@ -496,6 +496,18 @@ public class DiffReader {
                         visitor.visitLocalVariableAnnotations(annotations, !attrName.startsWith("In"), null);
                         break;
                     }
+                    case "InvisibleInsnAnnotations":
+                    case "VisibleInsnAnnotations": {
+                        final int nAnnotations = reader.readShort();
+                        final int[] indices = new int[nAnnotations];
+                        final List<TypeAnnotationNode> annotations = new ArrayList<>(nAnnotations);
+                        for (int j = 0; j < nAnnotations; j++) {
+                            indices[j] = reader.readShort();
+                            annotations.add(readTypeAnnotation(reader));
+                        }
+                        visitor.visitInsnAnnotations(indices, annotations, !attrName.startsWith("In"));
+                        break;
+                    }
                     default:
                         if (attrName.startsWith("Custom")) {
                             if (reader.readByte() != 0) {

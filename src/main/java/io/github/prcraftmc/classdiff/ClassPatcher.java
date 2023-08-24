@@ -873,6 +873,26 @@ public class ClassPatcher extends DiffVisitor {
                     fMethodNode.invisibleLocalVariableAnnotations = output;
                 }
             }
+
+            @Override
+            public void visitInsnAnnotations(int[] indices, List<TypeAnnotationNode> annotations, boolean visible) {
+                insnsFrozen = true;
+                for (int i = 0; i < indices.length; i++) {
+                    final AbstractInsnNode insn = fMethodNode.instructions.get(indices[i]);
+                    final TypeAnnotationNode annotation = annotations.get(i);
+                    if (visible) {
+                        if (insn.visibleTypeAnnotations == null) {
+                            insn.visibleTypeAnnotations = new ArrayList<>();
+                        }
+                        insn.visibleTypeAnnotations.add(annotation);
+                    } else {
+                        if (insn.invisibleTypeAnnotations == null) {
+                            insn.invisibleTypeAnnotations = new ArrayList<>();
+                        }
+                        insn.invisibleTypeAnnotations.add(annotation);
+                    }
+                }
+            }
         };
     }
 }

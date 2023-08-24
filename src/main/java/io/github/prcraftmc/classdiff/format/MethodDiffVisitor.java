@@ -102,6 +102,12 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
         }
     }
 
+    public void visitInsnAnnotations(int[] indices, List<TypeAnnotationNode> annotations, boolean visible) {
+        if (delegate != null) {
+            delegate.visitInsnAnnotations(indices, annotations, visible);
+        }
+    }
+
     public void visitEnd() {
         if (delegate != null) {
             delegate.visitEnd();
