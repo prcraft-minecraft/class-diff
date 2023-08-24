@@ -17,6 +17,7 @@ import java.io.UncheckedIOException;
 import java.util.*;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 public class ClassPatcher extends DiffVisitor {
     private final GDiffPatcher bytePatcher = new GDiffPatcher();
@@ -834,6 +835,43 @@ public class ClassPatcher extends DiffVisitor {
                     output.add(newBlock);
                 }
                 fMethodNode.tryCatchBlocks = output;
+            }
+
+            @Override
+            public void visitLocalVariableAnnotations(List<LocalVariableAnnotationNode> annotations, boolean visible, @Nullable LabelMap useMap) {
+                if (useMap == null) {
+                    useMap = insnsLabelMap;
+                }
+                if (useMap == null) {
+                    if (annotations.stream().anyMatch(
+                        l -> l.start.stream().anyMatch(l2 -> l2 instanceof SyntheticLabelNode) ||
+                            l.end.stream().anyMatch(l2 -> l2 instanceof SyntheticLabelNode)
+                    )) {
+                        insnsFrozen = true;
+                        useMap = new LabelMap(fMethodNode.instructions);
+                    } else {
+                        useMap = new LabelMap();
+                    }
+                }
+
+                final List<LocalVariableAnnotationNode> output = new ArrayList<>(annotations.size());
+                for (final LocalVariableAnnotationNode annotation : annotations) {
+                    final LocalVariableAnnotationNode newAnnotation = new LocalVariableAnnotationNode(
+                        0, null, null, null, null, ""
+                    );
+                    newAnnotation.typeRef = annotation.typeRef;
+                    newAnnotation.typePath = annotation.typePath;
+                    newAnnotation.start = annotation.start.stream().map(useMap::resolve).collect(Collectors.toList());
+                    newAnnotation.end = annotation.end.stream().map(useMap::resolve).collect(Collectors.toList());
+                    newAnnotation.index = annotation.index;
+                    newAnnotation.desc = annotation.desc;
+                    output.add(newAnnotation);
+                }
+                if (visible) {
+                    fMethodNode.visibleLocalVariableAnnotations = output;
+                } else {
+                    fMethodNode.invisibleLocalVariableAnnotations = output;
+                }
             }
         };
     }

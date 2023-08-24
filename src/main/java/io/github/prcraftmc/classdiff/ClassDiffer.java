@@ -572,6 +572,20 @@ public class ClassDiffer {
             output.visitTryCatchBlocks(modified.tryCatchBlocks, modifiedMap);
         }
 
+        if (
+            !Util.isNullOrEmpty(original.invisibleLocalVariableAnnotations) ||
+                !Util.isNullOrEmpty(modified.invisibleLocalVariableAnnotations)
+        ) {
+            output.visitLocalVariableAnnotations(modified.invisibleLocalVariableAnnotations, false, modifiedMap);
+        }
+
+        if (
+            !Util.isNullOrEmpty(original.visibleLocalVariableAnnotations) ||
+                !Util.isNullOrEmpty(modified.visibleLocalVariableAnnotations)
+        ) {
+            output.visitLocalVariableAnnotations(modified.visibleLocalVariableAnnotations, true, modifiedMap);
+        }
+
         output.visitEnd();
     }
 

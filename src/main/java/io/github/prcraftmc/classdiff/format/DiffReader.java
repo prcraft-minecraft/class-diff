@@ -460,6 +460,42 @@ public class DiffReader {
                         visitor.visitTryCatchBlocks(blocks, null);
                         break;
                     }
+                    case "InvisibleLocalVariableAnnotations":
+                    case "VisibleLocalVariableAnnotations": {
+                        final int count = reader.readShort();
+                        final List<LocalVariableAnnotationNode> annotations = new ArrayList<>(count);
+                        for (int j = 0; j < count; j++) {
+                            final TypeAnnotationNode typeAnnotation = readTypeAnnotation(reader);
+
+                            final int startCount = reader.readShort();
+                            final LabelNode[] start = new LabelNode[startCount];
+                            for (int k = 0; k < startCount; k++) {
+                                start[k] = new SyntheticLabelNode(reader.readShort());
+                            }
+
+                            final int endCount = reader.readShort();
+                            final LabelNode[] end = new LabelNode[endCount];
+                            for (int k = 0; k < endCount; k++) {
+                                end[k] = new SyntheticLabelNode(reader.readShort());
+                            }
+
+                            final int indexCount = reader.readShort();
+                            final int[] index = new int[indexCount];
+                            for (int k = 0; k < indexCount; k++) {
+                                index[k] = reader.readShort();
+                            }
+
+                            annotations.add(new LocalVariableAnnotationNode(
+                                typeAnnotation.typeRef,
+                                typeAnnotation.typePath,
+                                start, end, index,
+                                typeAnnotation.desc
+                            ));
+                            annotations.get(j).values = typeAnnotation.values;
+                        }
+                        visitor.visitLocalVariableAnnotations(annotations, !attrName.startsWith("In"), null);
+                        break;
+                    }
                     default:
                         if (attrName.startsWith("Custom")) {
                             if (reader.readByte() != 0) {
@@ -1052,28 +1088,10 @@ public class DiffReader {
             case TypeReference.FIELD:
             case TypeReference.METHOD_RETURN:
             case TypeReference.METHOD_RECEIVER:
-                targetType &= 0xFF000000;
-                currentOffset += 1;
-                break;
             case TypeReference.LOCAL_VARIABLE:
             case TypeReference.RESOURCE_VARIABLE:
                 targetType &= 0xFF000000;
-                int tableLength = readShort(currentOffset + 1);
-                currentOffset += 3;
-                context.currentLocalVariableAnnotationRangeStarts = new Label[tableLength];
-                context.currentLocalVariableAnnotationRangeEnds = new Label[tableLength];
-                context.currentLocalVariableAnnotationRangeIndices = new int[tableLength];
-                for (int i = 0; i < tableLength; ++i) {
-                    int startPc = readShort(currentOffset);
-                    int length = readShort(currentOffset + 2);
-                    int index = readShort(currentOffset + 4);
-                    currentOffset += 6;
-                    context.currentLocalVariableAnnotationRangeStarts[i] =
-                        createLabel(startPc, context.currentMethodLabels);
-                    context.currentLocalVariableAnnotationRangeEnds[i] =
-                        createLabel(startPc + length, context.currentMethodLabels);
-                    context.currentLocalVariableAnnotationRangeIndices[i] = index;
-                }
+                currentOffset += 1;
                 break;
             case TypeReference.CAST:
             case TypeReference.CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT:

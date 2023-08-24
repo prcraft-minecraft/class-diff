@@ -92,6 +92,16 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
         }
     }
 
+    public void visitLocalVariableAnnotations(
+        List<LocalVariableAnnotationNode> annotations,
+        boolean visible,
+        @Nullable LabelMap useMap
+    ) {
+        if (delegate != null) {
+            delegate.visitLocalVariableAnnotations(annotations, visible, useMap);
+        }
+    }
+
     public void visitEnd() {
         if (delegate != null) {
             delegate.visitEnd();

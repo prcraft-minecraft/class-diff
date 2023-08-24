@@ -19,7 +19,9 @@ public class DiffWriter extends DiffVisitor {
         vec.putShort(symbolTable.addConstantUtf8(value.desc)).putShort(0);
         value.accept(new AnnotationWriter(symbolTable, true, vec));
     });
-    private final PatchWriter<TypeAnnotationNode> typeAnnotationPatchWriter = new PatchWriter<>(this::writeTypeAnnotation);
+    private final PatchWriter<TypeAnnotationNode> typeAnnotationPatchWriter = new PatchWriter<>((vector, annotation) ->
+        writeTypeAnnotation(vector, annotation, false)
+    );
     private final PatchWriter<MemberName> memberNamePatchWriter = new PatchWriter<>((vec, value) ->
         vec.putShort(symbolTable.addConstantUtf8(value.name)).putShort(symbolTable.addConstantUtf8(value.descriptor))
     );
@@ -698,7 +700,7 @@ public class DiffWriter extends DiffVisitor {
                     if (block.invisibleTypeAnnotations != null) {
                         vector.putShort(block.invisibleTypeAnnotations.size());
                         for (final TypeAnnotationNode annotation : block.invisibleTypeAnnotations) {
-                            writeTypeAnnotation(vector, annotation);
+                            writeTypeAnnotation(vector, annotation, false);
                         }
                     } else {
                         vector.putShort(0);
@@ -707,10 +709,53 @@ public class DiffWriter extends DiffVisitor {
                     if (block.visibleTypeAnnotations != null) {
                         vector.putShort(block.visibleTypeAnnotations.size());
                         for (final TypeAnnotationNode annotation : block.visibleTypeAnnotations) {
-                            writeTypeAnnotation(vector, annotation);
+                            writeTypeAnnotation(vector, annotation, false);
                         }
                     } else {
                         vector.putShort(0);
+                    }
+                }
+                endAttr();
+            }
+
+            @Override
+            public void visitLocalVariableAnnotations(List<LocalVariableAnnotationNode> annotations, boolean visible, @Nullable LabelMap useMap) {
+                if (useMap == null && labelMap == null && !annotations.stream().allMatch(
+                    l -> l.start.stream().allMatch(l2 -> l2 instanceof SyntheticLabelNode) &&
+                        l.end.stream().allMatch(l2 -> l2 instanceof SyntheticLabelNode)
+                )) {
+                    throw new IllegalStateException(
+                        "Cannot call DiffWriter.visitLocalVariableAnnotations() unless one of the following conditions is met:\n" +
+                            "  + useMap is not null\n" +
+                            "  + visitInsns has been called first\n" +
+                            "  + All labels used in the annotations are synthetic"
+                    );
+                }
+
+                super.visitLocalVariableAnnotations(annotations, visible, useMap);
+
+                if (useMap == null) {
+                    useMap = labelMap != null ? labelMap : new LabelMap();
+                }
+
+                beginAttr((visible ? "Visible" : "Invisible") + "LocalVariableAnnotations");
+                vector.putShort(annotations.size());
+                for (final LocalVariableAnnotationNode annotation : annotations) {
+                    writeTypeAnnotation(vector, annotation, true);
+
+                    vector.putShort(annotation.start.size());
+                    for (final LabelNode start : annotation.start) {
+                        vector.putShort(useMap.getId(start));
+                    }
+
+                    vector.putShort(annotation.end.size());
+                    for (final LabelNode end : annotation.end) {
+                        vector.putShort(useMap.getId(end));
+                    }
+
+                    vector.putShort(annotation.index.size());
+                    for (final int index : annotation.index) {
+                        vector.putShort(index);
                     }
                 }
                 endAttr();
@@ -1103,8 +1148,12 @@ public class DiffWriter extends DiffVisitor {
         }
     }
 
-    private void writeTypeAnnotation(ByteVector vector, TypeAnnotationNode annotation) {
-        ReflectUtils.invokeTypeReferencePutTarget(annotation.typeRef, vector);
+    private void writeTypeAnnotation(ByteVector vector, TypeAnnotationNode annotation, boolean simpleTarget) {
+        if (simpleTarget) {
+            vector.putByte(annotation.typeRef >>> 24);
+        } else {
+            ReflectUtils.invokeTypeReferencePutTarget(annotation.typeRef, vector);
+        }
         ReflectUtils.invokeTypePathPut(annotation.typePath, vector);
         vector.putShort(symbolTable.addConstantUtf8(annotation.desc)).putShort(0);
         annotation.accept(new AnnotationWriter(symbolTable, true, vector));
