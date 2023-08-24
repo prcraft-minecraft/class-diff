@@ -9,6 +9,7 @@ import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.LabelNode;
 
 import java.util.*;
+import java.util.function.Supplier;
 
 public class Util {
     public static <T> List<T> getListFromArray(List<T>[] array, int i) {
@@ -48,5 +49,25 @@ public class Util {
             throw new UncheckedPatchFailure(e);
         }
         return result;
+    }
+
+    public static <T> Supplier<T> lazy(Supplier<T> initializer) {
+        return new Supplier<T>() {
+            private volatile boolean initialized;
+            private T result;
+
+            @Override
+            public T get() {
+                if (!initialized) {
+                    synchronized (this) {
+                        if (!initialized) {
+                            result = initializer.get();
+                            initialized = true;
+                        }
+                    }
+                }
+                return result;
+            }
+        };
     }
 }

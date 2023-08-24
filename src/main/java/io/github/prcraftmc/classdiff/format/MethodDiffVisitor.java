@@ -10,6 +10,7 @@ import org.objectweb.asm.tree.ParameterNode;
 import org.objectweb.asm.tree.TypeAnnotationNode;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, CustomAttributableVisitor {
     @Nullable
@@ -76,9 +77,9 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
     /**
      * @apiNote These insns may not have annotations and may use {@link SyntheticLabelNode}s.
      */
-    public void visitInsns(Patch<AbstractInsnNode> patch, LabelMap labelMap) {
+    public void visitInsns(Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
         if (delegate != null) {
-            delegate.visitInsns(patch, labelMap);
+            delegate.visitInsns(patch, patchedLabelMap);
         }
     }
 

@@ -470,7 +470,7 @@ public class ClassDiffer {
                             Collections.emptyList(),
                             new InsnListAdapter(node.instructions),
                             Equalizers.insnEqualizer(LabelMap.EMPTY, labelMap)
-                        ), labelMap);
+                        ), Util.lazy(() -> new LabelMap(node.instructions)));
                     }
                     visitor.visitEnd();
                 }
@@ -555,7 +555,7 @@ public class ClassDiffer {
                 new InsnListAdapter(original.instructions),
                 new InsnListAdapter(modified.instructions),
                 Equalizers.insnEqualizer(originalMap, modifiedMap)
-            ), modifiedMap);
+            ), () -> modifiedMap);
         }
 
         output.visitEnd();

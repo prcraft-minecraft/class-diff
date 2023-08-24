@@ -7,10 +7,7 @@ import io.github.prcraftmc.classdiff.util.*;
 import org.objectweb.asm.*;
 import org.objectweb.asm.tree.*;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class DiffReader {
     private final PatchReader<String> classPatchReader = new PatchReader<>(reader -> {
@@ -323,6 +320,8 @@ public class DiffReader {
         );
         final MethodDiffVisitor visitor = diffVisitor.visitMethod(access, name, descriptor, signature, exceptions);
 
+        final LabelMap labelMap = new LabelMap(node.instructions);
+
         final int attrCount = reader.readShort();
         for (int i = 0; i < attrCount; i++) {
             reader.skip(2);
@@ -400,12 +399,36 @@ public class DiffReader {
                     case "Maxs":
                         visitor.visitMaxs(reader.readShort(), reader.readShort());
                         break;
-                    case "Insns":
-                        visitor.visitInsns(
-                            new PatchReader<>(this::readInsn).readPatch(reader, new InsnListAdapter(node.instructions)),
-                            new LabelMap(node.instructions)
-                        );
+                    case "Insns": {
+                        final Patch<AbstractInsnNode> patch = new PatchReader<>(this::readInsn)
+                            .readPatch(reader, new InsnListAdapter(node.instructions));
+                        final MethodNode fNode = node;
+                        visitor.visitInsns(patch, Util.lazy(() -> { // We need to apply the patch to calculate this
+                            final Map<LabelNode, LabelNode> clonedLabels = new HashMap<>();
+                            for (final AbstractInsnNode insn : fNode.instructions) {
+                                if (insn instanceof LabelNode) {
+                                    clonedLabels.put((LabelNode)insn, new LabelNode());
+                                }
+                            }
+
+                            final List<AbstractInsnNode> clonedInsns = new ArrayList<>(fNode.instructions.size());
+                            for (final AbstractInsnNode insn : fNode.instructions) {
+                                clonedInsns.add(insn.clone(clonedLabels));
+                            }
+
+                            final InsnList newInsns = Util.asInsnList(Util.applyPatchUnchecked(patch, clonedInsns));
+
+                            return new LabelMap(newInsns);
+                        }));
                         break;
+                    }
+//                    case "LocalVariables":
+//                        visitor.visitLocalVariables(
+//                            new PatchReader<>(reader1 -> {
+//
+//                            })
+//                        );
+//                        break;
                     default:
                         if (attrName.startsWith("Custom")) {
                             if (reader.readByte() != 0) {

@@ -15,6 +15,7 @@ import org.objectweb.asm.tree.*;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 public class ClassPatcher extends DiffVisitor {
@@ -706,10 +707,12 @@ public class ClassPatcher extends DiffVisitor {
             }
 
             @Override
-            public void visitInsns(Patch<AbstractInsnNode> patch, LabelMap labelMap) {
+            public void visitInsns(Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
                 final Map<LabelNode, LabelNode> clonedLabels = new HashMap<>();
-                for (final LabelNode label : labelMap) {
-                    clonedLabels.put(label, new LabelNode());
+                for (final AbstractInsnNode insn : fMethodNode.instructions) {
+                    if (insn instanceof LabelNode) {
+                        clonedLabels.put((LabelNode)insn, new LabelNode());
+                    }
                 }
 
                 final List<AbstractInsnNode> clonedInsns = new ArrayList<>(fMethodNode.instructions.size());

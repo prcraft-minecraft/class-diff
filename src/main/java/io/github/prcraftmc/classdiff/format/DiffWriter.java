@@ -11,6 +11,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.util.*;
+import java.util.function.Supplier;
 
 public class DiffWriter extends DiffVisitor {
     private final SymbolTable symbolTable = new SymbolTable();
@@ -630,12 +631,13 @@ public class DiffWriter extends DiffVisitor {
             }
 
             @Override
-            public void visitInsns(Patch<AbstractInsnNode> patch, LabelMap labelMap) {
-                super.visitInsns(patch, labelMap);
+            public void visitInsns(Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
+                super.visitInsns(patch, patchedLabelMap);
 
                 beginAttr("Insns");
+                final LabelMap realLabelMap = patchedLabelMap.get();
                 new PatchWriter<AbstractInsnNode>(
-                    (vec, value) -> writeInsn(vec, value, labelMap)
+                    (vec, value) -> writeInsn(vec, value, realLabelMap)
                 ).write(vector, patch);
                 endAttr();
             }
