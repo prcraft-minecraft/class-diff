@@ -19,12 +19,7 @@ public class DiffWriter extends DiffVisitor {
         vec.putShort(symbolTable.addConstantUtf8(value.desc)).putShort(0);
         value.accept(new AnnotationWriter(symbolTable, true, vec));
     });
-    private final PatchWriter<TypeAnnotationNode> typeAnnotationPatchWriter = new PatchWriter<>((vec, value) -> {
-        ReflectUtils.invokeTypeReferencePutTarget(value.typeRef, vec);
-        ReflectUtils.invokeTypePathPut(value.typePath, vec);
-        vec.putShort(symbolTable.addConstantUtf8(value.desc)).putShort(0);
-        value.accept(new AnnotationWriter(symbolTable, true, vec));
-    });
+    private final PatchWriter<TypeAnnotationNode> typeAnnotationPatchWriter = new PatchWriter<>(this::writeTypeAnnotation);
     private final PatchWriter<MemberName> memberNamePatchWriter = new PatchWriter<>((vec, value) ->
         vec.putShort(symbolTable.addConstantUtf8(value.name)).putShort(symbolTable.addConstantUtf8(value.descriptor))
     );
@@ -692,15 +687,33 @@ public class DiffWriter extends DiffVisitor {
                     useMap = labelMap != null ? labelMap : new LabelMap();
                 }
 
-                vector.putShort(symbolTable.addConstantUtf8("TryCatchBlocks")).putInt(2 + 8 * newBlocks.size());
+                beginAttr("TryCatchBlocks");
                 vector.putShort(newBlocks.size());
-                for (final TryCatchBlockNode variable : newBlocks) {
-                    vector.putShort(useMap.getId(variable.start));
-                    vector.putShort(useMap.getId(variable.end));
-                    vector.putShort(useMap.getId(variable.handler));
-                    vector.putShort(variable.type != null ? symbolTable.addConstantClass(variable.type).index : 0);
+                for (final TryCatchBlockNode block : newBlocks) {
+                    vector.putShort(useMap.getId(block.start));
+                    vector.putShort(useMap.getId(block.end));
+                    vector.putShort(useMap.getId(block.handler));
+                    vector.putShort(block.type != null ? symbolTable.addConstantClass(block.type).index : 0);
+
+                    if (block.invisibleTypeAnnotations != null) {
+                        vector.putShort(block.invisibleTypeAnnotations.size());
+                        for (final TypeAnnotationNode annotation : block.invisibleTypeAnnotations) {
+                            writeTypeAnnotation(vector, annotation);
+                        }
+                    } else {
+                        vector.putShort(0);
+                    }
+
+                    if (block.visibleTypeAnnotations != null) {
+                        vector.putShort(block.visibleTypeAnnotations.size());
+                        for (final TypeAnnotationNode annotation : block.visibleTypeAnnotations) {
+                            writeTypeAnnotation(vector, annotation);
+                        }
+                    } else {
+                        vector.putShort(0);
+                    }
                 }
-                attributeCount++;
+                endAttr();
             }
 
             @Override
@@ -1088,5 +1101,12 @@ public class DiffWriter extends DiffVisitor {
         } else {
             throw new IllegalArgumentException("Unknown frame object type: " + frameObject.getClass());
         }
+    }
+
+    private void writeTypeAnnotation(ByteVector vector, TypeAnnotationNode annotation) {
+        ReflectUtils.invokeTypeReferencePutTarget(annotation.typeRef, vector);
+        ReflectUtils.invokeTypePathPut(annotation.typePath, vector);
+        vector.putShort(symbolTable.addConstantUtf8(annotation.desc)).putShort(0);
+        annotation.accept(new AnnotationWriter(symbolTable, true, vector));
     }
 }

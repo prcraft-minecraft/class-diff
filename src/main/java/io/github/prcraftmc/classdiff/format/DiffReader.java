@@ -19,17 +19,7 @@ public class DiffReader {
         reader.pointer(readElementValues(result, reader.pointer() + 2, true));
         return result;
     });
-    private final PatchReader<TypeAnnotationNode> typeAnnotationPatchReader = new PatchReader<>(reader -> {
-        final Context context = this.context.get();
-        reader.pointer(readTypeAnnotationTarget(reader.pointer(), context));
-        final TypeAnnotationNode result = new TypeAnnotationNode(
-            context.currentTypeAnnotationTarget,
-            context.currentTypeAnnotationTargetPath,
-            readUtf8(reader.pointer())
-        );
-        reader.pointer(readElementValues(result, reader.pointer() + 2, true));
-        return result;
-    });
+    private final PatchReader<TypeAnnotationNode> typeAnnotationPatchReader = new PatchReader<>(this::readTypeAnnotation);
     private final PatchReader<MemberName> memberNamePatchReader = new PatchReader<>(reader -> {
         reader.skip(4);
         return new MemberName(readUtf8(reader.pointer() - 4), readUtf8(reader.pointer() - 2));
@@ -441,13 +431,31 @@ public class DiffReader {
                         final int nBlocks = reader.readShort();
                         final List<TryCatchBlockNode> blocks = new ArrayList<>(nBlocks);
                         for (int j = 0; j < nBlocks; j++) {
-                            blocks.add(new TryCatchBlockNode(
+                            final TryCatchBlockNode block = new TryCatchBlockNode(
                                 new SyntheticLabelNode(reader.readShort()),
                                 new SyntheticLabelNode(reader.readShort()),
                                 new SyntheticLabelNode(reader.readShort()),
                                 readClass(reader.pointer())
-                            ));
+                            );
                             reader.skip(2);
+
+                            final int invisibleAnnotationCount = reader.readShort();
+                            if (invisibleAnnotationCount > 0) {
+                                block.invisibleTypeAnnotations = new ArrayList<>(invisibleAnnotationCount);
+                                for (int k = 0; k < invisibleAnnotationCount; k++) {
+                                    block.invisibleTypeAnnotations.add(readTypeAnnotation(reader));
+                                }
+                            }
+
+                            final int visibleAnnotationCount = reader.readShort();
+                            if (visibleAnnotationCount > 0) {
+                                block.visibleTypeAnnotations = new ArrayList<>(visibleAnnotationCount);
+                                for (int k = 0; k < visibleAnnotationCount; k++) {
+                                    block.visibleTypeAnnotations.add(readTypeAnnotation(reader));
+                                }
+                            }
+
+                            blocks.add(block);
                         }
                         visitor.visitTryCatchBlocks(blocks, null);
                         break;
@@ -1458,5 +1466,17 @@ public class DiffReader {
             default:
                 throw new IllegalArgumentException("Unknown frame object type tag " + tag);
         }
+    }
+
+    private TypeAnnotationNode readTypeAnnotation(ByteReader reader) {
+        final Context context = this.context.get();
+        reader.pointer(readTypeAnnotationTarget(reader.pointer(), context));
+        final TypeAnnotationNode result = new TypeAnnotationNode(
+            context.currentTypeAnnotationTarget,
+            context.currentTypeAnnotationTargetPath,
+            readUtf8(reader.pointer())
+        );
+        reader.pointer(readElementValues(result, reader.pointer() + 2, true));
+        return result;
     }
 }

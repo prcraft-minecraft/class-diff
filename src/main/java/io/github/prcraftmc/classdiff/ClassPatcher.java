@@ -823,12 +823,15 @@ public class ClassPatcher extends DiffVisitor {
 
                 final List<TryCatchBlockNode> output = new ArrayList<>(newBlocks.size());
                 for (final TryCatchBlockNode block : newBlocks) {
-                    output.add(new TryCatchBlockNode(
+                    final TryCatchBlockNode newBlock = new TryCatchBlockNode(
                         useMap.resolve(block.start),
                         useMap.resolve(block.end),
                         useMap.resolve(block.handler),
                         block.type
-                    ));
+                    );
+                    newBlock.invisibleTypeAnnotations = block.invisibleTypeAnnotations;
+                    newBlock.visibleTypeAnnotations = block.visibleTypeAnnotations;
+                    output.add(newBlock);
                 }
                 fMethodNode.tryCatchBlocks = output;
             }
