@@ -472,11 +472,17 @@ public class ClassDiffer {
                             Equalizers.insnEqualizer(LabelMap.EMPTY, labelMap)
                         ), () -> labelMap);
                     }
-                    if (!node.localVariables.isEmpty()) {
+                    if (!Util.isNullOrEmpty(node.localVariables)) {
                         visitor.visitLocalVariables(node.localVariables, labelMap);
                     }
                     if (!node.tryCatchBlocks.isEmpty()) {
                         visitor.visitTryCatchBlocks(node.tryCatchBlocks, labelMap);
+                    }
+                    if (!Util.isNullOrEmpty(node.invisibleLocalVariableAnnotations)) {
+                        visitor.visitLocalVariableAnnotations(node.invisibleLocalVariableAnnotations, false, labelMap);
+                    }
+                    if (!Util.isNullOrEmpty(node.visibleLocalVariableAnnotations)) {
+                        visitor.visitLocalVariableAnnotations(node.visibleLocalVariableAnnotations, true, labelMap);
                     }
                     visitor.visitEnd();
                 }
