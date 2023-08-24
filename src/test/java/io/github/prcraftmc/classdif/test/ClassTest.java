@@ -80,4 +80,14 @@ public class ClassTest {
     public void test5() throws IOException {
         test(PACKAGE + "test5/Hello.class", PACKAGE + "test5/World.class");
     }
+
+    @Test
+    public void test6() throws IOException {
+        test(PACKAGE + "test6/Hello.class", PACKAGE + "test6/World.class");
+    }
+
+    @Test
+    public void test7() throws IOException {
+        test(PACKAGE + "test7/Hello.class", PACKAGE + "test7/World.class");
+    }
 }

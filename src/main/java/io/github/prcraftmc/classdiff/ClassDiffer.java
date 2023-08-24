@@ -475,6 +475,9 @@ public class ClassDiffer {
                     if (!node.localVariables.isEmpty()) {
                         visitor.visitLocalVariables(node.localVariables, labelMap);
                     }
+                    if (!node.tryCatchBlocks.isEmpty()) {
+                        visitor.visitTryCatchBlocks(node.tryCatchBlocks, labelMap);
+                    }
                     visitor.visitEnd();
                 }
             }
@@ -561,11 +564,12 @@ public class ClassDiffer {
             ), () -> modifiedMap);
         }
 
-        if (!Equalizers.listEquals(
-            original.localVariables, modified.localVariables,
-            Equalizers.localVariableEqualizer(originalMap, modifiedMap)
-        )) {
+        if (!Util.isNullOrEmpty(original.localVariables) || !Util.isNullOrEmpty(modified.localVariables)) {
             output.visitLocalVariables(modified.localVariables, modifiedMap);
+        }
+
+        if (!original.tryCatchBlocks.isEmpty() || !modified.tryCatchBlocks.isEmpty()) {
+            output.visitTryCatchBlocks(modified.tryCatchBlocks, modifiedMap);
         }
 
         output.visitEnd();

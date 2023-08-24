@@ -437,6 +437,21 @@ public class DiffReader {
                         visitor.visitLocalVariables(locals, null);
                         break;
                     }
+                    case "TryCatchBlocks": {
+                        final int nBlocks = reader.readShort();
+                        final List<TryCatchBlockNode> blocks = new ArrayList<>(nBlocks);
+                        for (int j = 0; j < nBlocks; j++) {
+                            blocks.add(new TryCatchBlockNode(
+                                new SyntheticLabelNode(reader.readShort()),
+                                new SyntheticLabelNode(reader.readShort()),
+                                new SyntheticLabelNode(reader.readShort()),
+                                readClass(reader.pointer())
+                            ));
+                            reader.skip(2);
+                        }
+                        visitor.visitTryCatchBlocks(blocks, null);
+                        break;
+                    }
                     default:
                         if (attrName.startsWith("Custom")) {
                             if (reader.readByte() != 0) {

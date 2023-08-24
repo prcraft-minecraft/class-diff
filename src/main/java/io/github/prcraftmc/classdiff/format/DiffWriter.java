@@ -674,6 +674,36 @@ public class DiffWriter extends DiffVisitor {
             }
 
             @Override
+            public void visitTryCatchBlocks(List<TryCatchBlockNode> newBlocks, @Nullable LabelMap useMap) {
+                if (useMap == null && labelMap == null && !newBlocks.stream().allMatch(
+                    l -> l.start instanceof SyntheticLabelNode && l.end instanceof SyntheticLabelNode && l.handler instanceof SyntheticLabelNode
+                )) {
+                    throw new IllegalStateException(
+                        "Cannot call DiffWriter.visitTryCatchBlocks() unless one of the following conditions is met:\n" +
+                            "  + useMap is not null\n" +
+                            "  + visitInsns has been called first\n" +
+                            "  + All labels used in the try-catch blocks are synthetic"
+                    );
+                }
+
+                super.visitTryCatchBlocks(newBlocks, useMap);
+
+                if (useMap == null) {
+                    useMap = labelMap != null ? labelMap : new LabelMap();
+                }
+
+                vector.putShort(symbolTable.addConstantUtf8("TryCatchBlocks")).putInt(2 + 8 * newBlocks.size());
+                vector.putShort(newBlocks.size());
+                for (final TryCatchBlockNode variable : newBlocks) {
+                    vector.putShort(useMap.getId(variable.start));
+                    vector.putShort(useMap.getId(variable.end));
+                    vector.putShort(useMap.getId(variable.handler));
+                    vector.putShort(variable.type != null ? symbolTable.addConstantClass(variable.type).index : 0);
+                }
+                attributeCount++;
+            }
+
+            @Override
             public void visitEnd() {
                 super.visitEnd();
 

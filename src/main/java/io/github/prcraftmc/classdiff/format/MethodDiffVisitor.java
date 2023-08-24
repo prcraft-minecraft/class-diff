@@ -86,6 +86,12 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
         }
     }
 
+    public void visitTryCatchBlocks(List<TryCatchBlockNode> newBlocks, @Nullable LabelMap useMap) {
+        if (delegate != null) {
+            delegate.visitTryCatchBlocks(newBlocks, useMap);
+        }
+    }
+
     public void visitEnd() {
         if (delegate != null) {
             delegate.visitEnd();

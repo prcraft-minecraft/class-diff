@@ -804,6 +804,34 @@ public class ClassPatcher extends DiffVisitor {
                 }
                 fMethodNode.localVariables = output;
             }
+
+            @Override
+            public void visitTryCatchBlocks(List<TryCatchBlockNode> newBlocks, @Nullable LabelMap useMap) {
+                if (useMap == null) {
+                    useMap = insnsLabelMap;
+                }
+                if (useMap == null) {
+                    if (newBlocks.stream().anyMatch(
+                        l -> l.start instanceof SyntheticLabelNode || l.end instanceof SyntheticLabelNode || l.handler instanceof SyntheticLabelNode
+                    )) {
+                        insnsFrozen = true;
+                        useMap = new LabelMap(fMethodNode.instructions);
+                    } else {
+                        useMap = new LabelMap();
+                    }
+                }
+
+                final List<TryCatchBlockNode> output = new ArrayList<>(newBlocks.size());
+                for (final TryCatchBlockNode block : newBlocks) {
+                    output.add(new TryCatchBlockNode(
+                        useMap.resolve(block.start),
+                        useMap.resolve(block.end),
+                        useMap.resolve(block.handler),
+                        block.type
+                    ));
+                }
+                fMethodNode.tryCatchBlocks = output;
+            }
         };
     }
 }

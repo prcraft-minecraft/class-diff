@@ -70,4 +70,8 @@ public class Util {
             }
         };
     }
+
+    public static boolean isNullOrEmpty(List<?> list) {
+        return list == null || list.isEmpty();
+    }
 }
