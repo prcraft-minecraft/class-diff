@@ -17,7 +17,7 @@ public class Util {
             return Collections.emptyList();
         }
         final List<T> value = array[i];
-        return value != null ? value : Collections.emptyList();
+        return Util.nullToEmpty(value);
     }
 
     public static InsnList clone(InsnList list, Map<LabelNode, LabelNode> clonedLabels) {
@@ -73,5 +73,9 @@ public class Util {
 
     public static boolean isNullOrEmpty(List<?> list) {
         return list == null || list.isEmpty();
+    }
+
+    public static <T> List<T> nullToEmpty(List<T> list) {
+        return list != null ? list : Collections.emptyList();
     }
 }

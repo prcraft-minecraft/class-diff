@@ -138,7 +138,7 @@ public class DiffReader {
             } else {
                 reader.skip(-2);
                 interfacePatch = classPatchReader.readPatch(
-                    reader, node.interfaces != null ? node.interfaces : Collections.emptyList()
+                    reader, Util.nullToEmpty(node.interfaces)
                 );
             }
         }
@@ -177,7 +177,7 @@ public class DiffReader {
                         );
                     }).readPatch(
                         reader,
-                        node.innerClasses != null ? node.innerClasses : Collections.emptyList()
+                        Util.nullToEmpty(node.innerClasses)
                     ));
                     break;
                 case "OuterClasses":
@@ -193,37 +193,37 @@ public class DiffReader {
                 case "NestMembers":
                     visitor.visitNestMembers(classPatchReader.readPatch(
                         reader,
-                        node.nestMembers != null ? node.nestMembers : Collections.emptyList()
+                        Util.nullToEmpty(node.nestMembers)
                     ));
                     break;
                 case "PermittedSubclasses":
                     visitor.visitPermittedSubclasses(classPatchReader.readPatch(
                         reader,
-                        node.permittedSubclasses != null ? node.permittedSubclasses : Collections.emptyList()
+                        Util.nullToEmpty(node.permittedSubclasses)
                     ));
                     break;
                 case "VisibleAnnotations":
                     visitor.visitAnnotations(annotationPatchReader.readPatch(
                         reader,
-                        node.visibleAnnotations != null ? node.visibleAnnotations : Collections.emptyList()
+                        Util.nullToEmpty(node.visibleAnnotations)
                     ), true);
                     break;
                 case "InvisibleAnnotations":
                     visitor.visitAnnotations(annotationPatchReader.readPatch(
                         reader,
-                        node.invisibleAnnotations != null ? node.invisibleAnnotations : Collections.emptyList()
+                        Util.nullToEmpty(node.invisibleAnnotations)
                     ), false);
                     break;
                 case "VisibleTypeAnnotations":
                     visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
                         reader,
-                        node.visibleTypeAnnotations != null ? node.visibleTypeAnnotations : Collections.emptyList()
+                        Util.nullToEmpty(node.visibleTypeAnnotations)
                     ), true);
                     break;
                 case "InvisibleTypeAnnotations":
                     visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
                         reader,
-                        node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
+                        Util.nullToEmpty(node.invisibleTypeAnnotations)
                     ), false);
                     break;
                 case "RecordComponents":
@@ -306,7 +306,7 @@ public class DiffReader {
         }
 
         final Patch<String> exceptions = classPatchReader.readPatch(
-            reader, node.exceptions != null ? node.exceptions : Collections.emptyList()
+            reader, Util.nullToEmpty(node.exceptions)
         );
         final MethodDiffVisitor visitor = diffVisitor.visitMethod(access, name, descriptor, signature, exceptions);
 
@@ -324,25 +324,25 @@ public class DiffReader {
                     case "VisibleAnnotations":
                         visitor.visitAnnotations(annotationPatchReader.readPatch(
                             reader,
-                            node.visibleAnnotations != null ? node.visibleAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.visibleAnnotations)
                         ), true);
                         break;
                     case "InvisibleAnnotations":
                         visitor.visitAnnotations(annotationPatchReader.readPatch(
                             reader,
-                            node.invisibleAnnotations != null ? node.invisibleAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.invisibleAnnotations)
                         ), false);
                         break;
                     case "VisibleTypeAnnotations":
                         visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
                             reader,
-                            node.visibleTypeAnnotations != null ? node.visibleTypeAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.visibleTypeAnnotations)
                         ), true);
                         break;
                     case "InvisibleTypeAnnotations":
                         visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
                             reader,
-                            node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.invisibleTypeAnnotations)
                         ), false);
                         break;
                     case "AnnotationDefault":
@@ -382,7 +382,7 @@ public class DiffReader {
                         visitor.visitParameters(new PatchReader<>(reader1 -> {
                             reader1.skip(2);
                             return new ParameterNode(readUtf8(reader1.pointer() - 2), reader1.readInt());
-                        }).readPatch(reader, node.parameters != null ? node.parameters : Collections.emptyList()));
+                        }).readPatch(reader, Util.nullToEmpty(node.parameters)));
                         break;
                     case "Maxs":
                         visitor.visitMaxs(reader.readShort(), reader.readShort());
@@ -567,25 +567,25 @@ public class DiffReader {
                     case "VisibleAnnotations":
                         visitor.visitAnnotations(annotationPatchReader.readPatch(
                             reader,
-                            node.visibleAnnotations != null ? node.visibleAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.visibleAnnotations)
                         ), true);
                         break;
                     case "InvisibleAnnotations":
                         visitor.visitAnnotations(annotationPatchReader.readPatch(
                             reader,
-                            node.invisibleAnnotations != null ? node.invisibleAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.invisibleAnnotations)
                         ), false);
                         break;
                     case "VisibleTypeAnnotations":
                         visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
                             reader,
-                            node.visibleTypeAnnotations != null ? node.visibleTypeAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.visibleTypeAnnotations)
                         ), true);
                         break;
                     case "InvisibleTypeAnnotations":
                         visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
                             reader,
-                            node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.invisibleTypeAnnotations)
                         ), false);
                         break;
                     default:
@@ -624,7 +624,7 @@ public class DiffReader {
                     break;
                 case "Packages":
                     visitor.visitPackages(packagePatchReader.readPatch(
-                        reader, node.packages != null ? node.packages : Collections.emptyList()
+                        reader, Util.nullToEmpty(node.packages)
                     ));
                     break;
                 case "Requires":
@@ -635,7 +635,7 @@ public class DiffReader {
                             readShort(reader1.pointer() - 4),
                             readUtf8(reader1.pointer() - 2)
                         );
-                    }).readPatch(reader, node.requires != null ? node.requires : Collections.emptyList()));
+                    }).readPatch(reader, Util.nullToEmpty(node.requires)));
                     break;
                 case "Exports":
                     visitor.visitExports(new PatchReader<>(reader1 -> {
@@ -648,7 +648,7 @@ public class DiffReader {
                             reader1.skip(2);
                         }
                         return new ModuleExportNode(exports, exportsFlags, exportsTo);
-                    }).readPatch(reader, node.exports != null ? node.exports : Collections.emptyList()));
+                    }).readPatch(reader, Util.nullToEmpty(node.exports)));
                     break;
                 case "Opens":
                     visitor.visitOpens(new PatchReader<>(reader1 -> {
@@ -661,10 +661,10 @@ public class DiffReader {
                             reader1.skip(2);
                         }
                         return new ModuleOpenNode(opens, opensFlags, opensTo);
-                    }).readPatch(reader, node.opens != null ? node.opens : Collections.emptyList()));
+                    }).readPatch(reader, Util.nullToEmpty(node.opens)));
                     break;
                 case "Uses":
-                    visitor.visitUses(classPatchReader.readPatch(reader, node.uses != null ? node.uses : Collections.emptyList()));
+                    visitor.visitUses(classPatchReader.readPatch(reader, Util.nullToEmpty(node.uses)));
                     break;
                 case "Provides":
                     visitor.visitProvides(new PatchReader<>(reader1 -> {
@@ -676,7 +676,7 @@ public class DiffReader {
                             reader1.skip(2);
                         }
                         return new ModuleProvideNode(provides, providesWith);
-                    }).readPatch(reader, node.provides != null ? node.provides : Collections.emptyList()));
+                    }).readPatch(reader, Util.nullToEmpty(node.provides)));
                     break;
             }
             reader.pointer(endPos);
@@ -722,25 +722,25 @@ public class DiffReader {
                     case "VisibleAnnotations":
                         visitor.visitAnnotations(annotationPatchReader.readPatch(
                             reader,
-                            node.visibleAnnotations != null ? node.visibleAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.visibleAnnotations)
                         ), true);
                         break;
                     case "InvisibleAnnotations":
                         visitor.visitAnnotations(annotationPatchReader.readPatch(
                             reader,
-                            node.invisibleAnnotations != null ? node.invisibleAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.invisibleAnnotations)
                         ), false);
                         break;
                     case "VisibleTypeAnnotations":
                         visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
                             reader,
-                            node.visibleTypeAnnotations != null ? node.visibleTypeAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.visibleTypeAnnotations)
                         ), true);
                         break;
                     case "InvisibleTypeAnnotations":
                         visitor.visitTypeAnnotations(typeAnnotationPatchReader.readPatch(
                             reader,
-                            node.invisibleTypeAnnotations != null ? node.invisibleTypeAnnotations : Collections.emptyList()
+                            Util.nullToEmpty(node.invisibleTypeAnnotations)
                         ), false);
                         break;
                     default:

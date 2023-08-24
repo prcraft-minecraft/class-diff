@@ -98,4 +98,9 @@ public class ClassTest {
     public void test9() throws IOException {
         test("/java/lang/Integer.class", "/java/lang/Float.class");
     }
+
+    @Test
+    public void test10() throws IOException {
+        test("/java/lang/Object.class", "/java/lang/Record.class");
+    }
 }
