@@ -9,6 +9,7 @@ import io.github.prcraftmc.classdiff.format.DiffReader;
 import io.github.prcraftmc.classdiff.format.DiffWriter;
 import io.github.prcraftmc.classdiff.util.Util;
 import net.sourceforge.argparse4j.ArgumentParsers;
+import net.sourceforge.argparse4j.helper.HelpScreenException;
 import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
@@ -42,10 +43,10 @@ public class ClassDiffCli {
             .build()
             .defaultHelp(true)
             .description("CLI tool for class-diff, a library for creating diffs between JVM .class files.");
-        parser.addArgument("--skip-debug", "-D")
+        parser.addArgument("-D", "--skip-debug")
             .help("Skip debug data. This skips: source file data, parameter metadata, local variable data, and line number data.")
             .action(Arguments.storeTrue()); // Why is this in impl? Weird.
-        parser.addArgument("--skip-unknown-attributes", "-A")
+        parser.addArgument("-A", "--skip-unknown-attributes")
             .help(
                 "Skip unknown attributes. This is useful for when unknown attributes (such as those used by modules) " +
                     "will be left invalid after patching due to the constant pool being in a different order."
@@ -85,7 +86,7 @@ public class ClassDiffCli {
         final Subparser print = parser.addSubparsers()
             .addParser("print")
             .help("Print information about things");
-        print.addArgument("--code-form", "-c")
+        print.addArgument("-c", "--code-form")
             .help("Print information in code form")
             .action(Arguments.storeTrue());
 
@@ -99,7 +100,7 @@ public class ClassDiffCli {
 
         final Subparser printChanges = print.addSubparsers()
             .addParser("changes")
-            .help("Print out the textual representation of a class")
+            .help("Print out the differences between the textual representation of two classes")
             .setDefault("action", Options.Action.PRINT_CHANGES);
         printChanges.addArgument("source")
             .type(new PathArgumentType(true))
@@ -127,7 +128,7 @@ public class ClassDiffCli {
             parser.parseArgs(args, options);
         } catch (ArgumentParserException e) {
             parser.handleError(e);
-            System.exit(1);
+            System.exit(e instanceof HelpScreenException ? 0 : 1);
         }
 
         AnsiConsole.systemInstall();
