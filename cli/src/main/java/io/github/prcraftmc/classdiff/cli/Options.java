@@ -29,6 +29,12 @@ public class Options {
     @Arg
     public Path patch;
 
+    @Arg(dest = "code_form")
+    public boolean codeForm;
+
+    @Arg(dest = "class")
+    public Path clazz;
+
     public Path getOutput(Function<Options, Path> defaultResolve) {
         Path output = this.output;
         if (output == null) {
@@ -52,6 +58,8 @@ public class Options {
     public enum Action {
         DIFF,
         APPLY,
+        PRINT_CLASS,
+        PRINT_CHANGES,
         TEST,
     }
 }

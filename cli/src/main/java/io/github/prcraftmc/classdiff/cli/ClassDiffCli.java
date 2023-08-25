@@ -22,6 +22,8 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.RecordComponentNode;
+import org.objectweb.asm.util.ASMifier;
+import org.objectweb.asm.util.Textifier;
 import org.objectweb.asm.util.TraceClassVisitor;
 
 import java.io.IOException;
@@ -80,10 +82,39 @@ public class ClassDiffCli {
             .help("Target file to output to")
             .nargs("?");
 
+        final Subparser print = parser.addSubparsers()
+            .addParser("print")
+            .help("Print information about things");
+        print.addArgument("--code-form", "-c")
+            .help("Print information in code form")
+            .action(Arguments.storeTrue());
+
+        final Subparser printClass = print.addSubparsers()
+            .addParser("class")
+            .help("Print out the textual representation of a class")
+            .setDefault("action", Options.Action.PRINT_CLASS);
+        printClass.addArgument("class")
+            .type(new PathArgumentType(true))
+            .help("Class file to print");
+
+        final Subparser printChanges = print.addSubparsers()
+            .addParser("changes")
+            .help("Print out the textual representation of a class")
+            .setDefault("action", Options.Action.PRINT_CHANGES);
+        printChanges.addArgument("source")
+            .type(new PathArgumentType(true))
+            .help("Source file to diff from");
+        printChanges.addArgument("target")
+            .type(new PathArgumentType(true))
+            .help("Modified file to diff with");
+
         final Subparser test = parser.addSubparsers()
             .addParser("test")
             .help("Test class-diff's ability to diff and patch files")
             .setDefault("action", Options.Action.TEST);
+        test.addArgument("--code-form", "-c")
+            .help("Print information in code form")
+            .action(Arguments.storeTrue());
         test.addArgument("source")
             .type(new PathArgumentType(true))
             .help("Source file to diff from");
@@ -106,6 +137,12 @@ public class ClassDiffCli {
                 break;
             case APPLY:
                 apply(options);
+                break;
+            case PRINT_CLASS:
+                printClass(options);
+                break;
+            case PRINT_CHANGES:
+                printChanges(options);
                 break;
             case TEST:
                 test(options);
@@ -193,6 +230,21 @@ public class ClassDiffCli {
         tryClose(options.source, options.patch, output);
     }
 
+    public static void printClass(Options options) throws Exception {
+        System.out.println(classNodeToString(readClass(options, options.clazz), options));
+    }
+
+    public static void printChanges(Options options) throws Exception {
+        final ClassNode source = readClass(options, options.source);
+        final ClassNode target = readClass(options, options.target);
+        printDiff(
+            source, target,
+            source.name.substring(source.name.lastIndexOf('/')) + ".txt",
+            target.name.substring(target.name.lastIndexOf('/')) + ".txt",
+            options
+        );
+    }
+
     public static void test(Options options) throws Exception {
         final ClassNode source = readClass(options, options.source);
         final ClassNode target = readClass(options, options.target);
@@ -205,7 +257,7 @@ public class ClassDiffCli {
         final byte[] result = writer.toByteArray();
         ClassPatcher.patch(input, new DiffReader(result));
 
-        final Patch<String> diff = printDiff(target, input, "expect.txt", "actual.txt");
+        final Patch<String> diff = printDiff(target, input, "expect.txt", "actual.txt", options);
 
         if (diff.getDeltas().isEmpty()) {
             System.out.println(Ansi.ansi().fgBrightGreen().a("\u2714 Test success!").reset());
@@ -244,9 +296,9 @@ public class ClassDiffCli {
         }
     }
 
-    private static Patch<String > printDiff(ClassNode nodeA, ClassNode nodeB, String fileA, String fileB) {
-        final List<String> linesA = classNodeToLines(nodeA);
-        final List<String> linesB = classNodeToLines(nodeB);
+    private static Patch<String > printDiff(ClassNode nodeA, ClassNode nodeB, String fileA, String fileB, Options options) {
+        final List<String> linesA = classNodeToLines(nodeA, options);
+        final List<String> linesB = classNodeToLines(nodeB, options);
 
         final Patch<String> diff = DiffUtils.diff(linesA, linesB);
         final List<String> outLines = UnifiedDiffUtils.generateUnifiedDiff(fileA, fileB, linesA, diff, 3);
@@ -266,13 +318,15 @@ public class ClassDiffCli {
         return diff;
     }
 
-    private static List<String> classNodeToLines(ClassNode classNode) {
-        return Arrays.asList(classNodeToString(classNode).split("\n"));
+    private static List<String> classNodeToLines(ClassNode classNode, Options options) {
+        return Arrays.asList(classNodeToString(classNode, options).split("\n"));
     }
 
-    private static String classNodeToString(ClassNode classNode) {
+    private static String classNodeToString(ClassNode classNode, Options options) {
         final StringWriter result = new StringWriter();
-        classNode.accept(new TraceClassVisitor(new PrintWriter(result)));
+        classNode.accept(new TraceClassVisitor(
+            null, options.codeForm ? new ASMifier() : new Textifier(), new PrintWriter(result)
+        ));
         return result.toString();
     }
 
