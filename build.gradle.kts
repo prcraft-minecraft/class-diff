@@ -30,6 +30,7 @@ dependencies {
 }
 
 tasks.compileJava {
+    options.encoding = "UTF-8"
     sourceCompatibility = "1.8"
     targetCompatibility = "1.8"
     if (JavaVersion.current().isJava9Compatible) {
@@ -38,6 +39,7 @@ tasks.compileJava {
 }
 
 tasks.compileTestJava {
+    options.encoding = "UTF-8"
     sourceCompatibility = "17"
     targetCompatibility = "17"
     if (JavaVersion.current().isJava9Compatible) {
