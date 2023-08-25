@@ -12,12 +12,12 @@ import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
-import net.sourceforge.argparse4j.inf.ArgumentType;
 import net.sourceforge.argparse4j.inf.Subparser;
 import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiConsole;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -28,40 +28,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class ClassDiffCli {
-    @SuppressWarnings("DuplicateExpressions")
-    private static final ArgumentType<Path> PATH_ARGUMENT_TYPE = (parser, arg, value) -> {
-        try {
-            return Paths.get(value);
-        } catch (InvalidPathException e) {
-            final URI uri;
-            try {
-                uri = new URI(value);
-            } catch (URISyntaxException e1) {
-                throw new ArgumentParserException("Invalid path: " + e.getLocalizedMessage(), e, parser, arg);
-            }
-            try {
-                return Paths.get(uri);
-            } catch (IllegalArgumentException e1) {
-                throw new ArgumentParserException("Invalid path for URI path: " + e1.getLocalizedMessage(), e1, parser, arg);
-            } catch (FileSystemNotFoundException e1) {
-                try {
-                    FileSystems.newFileSystem(uri, Collections.emptyMap());
-                    return Paths.get(uri);
-                } catch (IOException e2) {
-                    throw new ArgumentParserException("Failed to open URI path: " + e2.getLocalizedMessage(), e2, parser, arg);
-                }
-            }
-        }
-    };
-
     public static void main(String[] args) throws Exception {
         final ArgumentParser parser = ArgumentParsers.newFor("class-diff")
             .fromFilePrefix("@")
@@ -78,14 +50,45 @@ public class ClassDiffCli {
             )
             .action(Arguments.storeTrue());
 
+        final Subparser diff = parser.addSubparsers()
+            .addParser("diff")
+            .help("Generate a patch between two class files")
+            .setDefault("action", Options.Action.DIFF);
+        diff.addArgument("source")
+            .type(new PathArgumentType(true))
+            .help("Source file to diff from");
+        diff.addArgument("target")
+            .type(new PathArgumentType(true))
+            .help("Modified file to diff with");
+        diff.addArgument("output")
+            .type(new PathArgumentType(false))
+            .help("Target file to output to")
+            .nargs("?");
+
+        final Subparser apply = parser.addSubparsers()
+            .addParser("apply")
+            .help("Apply a patch to a class file")
+            .setDefault("action", Options.Action.APPLY);
+        apply.addArgument("source")
+            .type(new PathArgumentType(true))
+            .help("Source file to patch");
+        apply.addArgument("patch")
+            .type(new PathArgumentType(true))
+            .help("Patch file to apply");
+        apply.addArgument("output")
+            .type(new PathArgumentType(false))
+            .help("Target file to output to")
+            .nargs("?");
+
         final Subparser test = parser.addSubparsers()
             .addParser("test")
+            .help("Test class-diff's ability to diff and patch files")
             .setDefault("action", Options.Action.TEST);
         test.addArgument("source")
-            .type(PATH_ARGUMENT_TYPE)
+            .type(new PathArgumentType(true))
             .help("Source file to diff from");
         test.addArgument("target")
-            .type(PATH_ARGUMENT_TYPE)
+            .type(new PathArgumentType(true))
             .help("Modified file to diff with");
 
         final Options options = new Options();
@@ -98,24 +101,134 @@ public class ClassDiffCli {
 
         AnsiConsole.systemInstall();
         switch (options.action) {
+            case DIFF:
+                diff(options);
+                break;
+            case APPLY:
+                apply(options);
+                break;
             case TEST:
                 test(options);
                 break;
+            default:
+                throw new UnsupportedOperationException("Action " + options.action + " not implemented yet");
         }
+    }
+
+    public static void diff(Options options) throws Exception {
+        final Path output = options.getOutput(o -> {
+            final String targetFilename = o.target.getFileName().toString();
+            final int dotIndex = targetFilename.lastIndexOf('.');
+            final String strippedFilename = dotIndex >= 0 ? targetFilename.substring(0, dotIndex) : targetFilename;
+            return o.target.getParent().resolve(strippedFilename + ".cdiff");
+        });
+
+        final ClassNode source = readClass(options, options.source);
+        final ClassNode target = readClass(options, options.target);
+
+        final DiffWriter writer = new DiffWriter();
+        ClassDiffer.diff(source, target, writer);
+        try {
+            Files.write(output, writer.toByteArray());
+        } catch (IOException e) {
+            System.err.println(Ansi.ansi()
+                .fgBrightRed()
+                .a("Failed to write to file ").a(output)
+                .a('\n').a(e)
+                .reset()
+            );
+            System.exit(1);
+        }
+
+        System.out.println("Patch written to " + output);
+        tryClose(options.source, options.target, output);
+    }
+
+    public static void apply(Options options) throws Exception {
+        final ClassNode clazz = readClass(options, options.source);
+        final byte[] patch = Files.readAllBytes(options.patch);
+
+        final String originalClassName = clazz.name;
+        final int slashIndex = originalClassName.lastIndexOf('/');
+        final String originalPackage = slashIndex > 0 ? originalClassName.substring(0, slashIndex) : "";
+
+        ClassPatcher.patch(clazz, new DiffReader(patch));
+
+        final Path output = options.getOutput(o -> {
+            Path result = o.source.getParent();
+            if (result != null) {
+                if (!originalPackage.isEmpty()) {
+                    result = unresolve(result, originalPackage);
+                    result = result != null
+                        ? result.resolve(clazz.name + ".class")
+                        : o.source.getFileSystem().getPath(clazz.name + ".class");
+                }
+                if (!result.equals(o.source.toAbsolutePath()) && !result.getFileSystem().isReadOnly()) {
+                    return result;
+                }
+            }
+            final String targetName = clazz.name.substring(clazz.name.lastIndexOf('/') + 1) + ".class";
+            result = o.patch.getParent();
+            if (result != null) {
+                return result.resolve(targetName);
+            }
+            return o.patch.getFileSystem().getPath(targetName);
+        });
+
+        final ClassWriter writer = new ClassWriter(0);
+        clazz.accept(writer);
+        try {
+            Files.write(output, writer.toByteArray());
+        } catch (Exception e) {
+            System.err.println(Ansi.ansi()
+                .fgBrightRed()
+                .a("Failed to write to file ").a(output)
+                .a('\n').a(e)
+                .reset()
+            );
+            System.exit(1);
+        }
+
+        System.out.println("Patched class written to " + output);
+        tryClose(options.source, options.patch, output);
     }
 
     public static void test(Options options) throws Exception {
         final ClassNode source = readClass(options, options.source);
         final ClassNode target = readClass(options, options.target);
+        final ClassNode input = readClass(options, options.source);
         tryClose(options.source, options.target);
 
         final DiffWriter writer = new DiffWriter();
         ClassDiffer.diff(source, target, writer);
 
         final byte[] result = writer.toByteArray();
-        ClassPatcher.patch(source, new DiffReader(result));
+        ClassPatcher.patch(input, new DiffReader(result));
 
-        printDiff(target, source, "expect.txt", "actual.txt");
+        final Patch<String> diff = printDiff(target, input, "expect.txt", "actual.txt");
+
+        if (diff.getDeltas().isEmpty()) {
+            System.out.println(Ansi.ansi().fgBrightGreen().a("\u2714 Test success!").reset());
+        } else {
+            System.out.println(Ansi.ansi().fgBrightRed().a("\u274c Test failure!").reset());
+        }
+    }
+
+    private static Path unresolve(Path start, String path) {
+        Path result = start.toAbsolutePath();
+        int i = path.lastIndexOf('/');
+        int lastI = path.length();
+        while (true) {
+            final String element = path.substring(i + 1, lastI);
+            if (result.getFileName().toString().equals(element)) {
+                result = result.getParent();
+                if (result == null) break;
+            }
+            if (i == -1) break;
+            lastI = i;
+            i = path.lastIndexOf('/', i - 1);
+        }
+        return result;
     }
 
     private static void tryClose(Path... paths) throws IOException {
@@ -131,7 +244,7 @@ public class ClassDiffCli {
         }
     }
 
-    private static void printDiff(ClassNode nodeA, ClassNode nodeB, String fileA, String fileB) {
+    private static Patch<String > printDiff(ClassNode nodeA, ClassNode nodeB, String fileA, String fileB) {
         final List<String> linesA = classNodeToLines(nodeA);
         final List<String> linesB = classNodeToLines(nodeB);
 
@@ -150,12 +263,7 @@ public class ClassDiffCli {
             }
         }
 
-        System.out.println();
-        if (diff.getDeltas().isEmpty()) {
-            System.out.println(Ansi.ansi().fgBrightGreen().a("\u2714 Test success!").reset());
-        } else {
-            System.out.println(Ansi.ansi().fgBrightRed().a("\u274c Test failure!").reset());
-        }
+        return diff;
     }
 
     private static List<String> classNodeToLines(ClassNode classNode) {
