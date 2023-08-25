@@ -22,8 +22,8 @@ public class DiffWriter extends DiffVisitor {
     private final PatchWriter<TypeAnnotationNode> typeAnnotationPatchWriter = new PatchWriter<>((vector, annotation) ->
         writeTypeAnnotation(vector, annotation, false)
     );
-    private final PatchWriter<MemberName> memberNamePatchWriter = new PatchWriter<>((vec, value) -> // TODO: CONSTANT_NameAndType
-        vec.putShort(symbolTable.addConstantUtf8(value.name)).putShort(symbolTable.addConstantUtf8(value.descriptor))
+    private final PatchWriter<MemberName> memberNamePatchWriter = new PatchWriter<>((vec, value) ->
+        vec.putShort(symbolTable.addConstantNameAndType(value.name, value.descriptor))
     );
     private final PatchWriter<String> packagePatchWriter = new PatchWriter<>((vec, value) ->
         vec.putShort(symbolTable.addConstantPackage(value).index)

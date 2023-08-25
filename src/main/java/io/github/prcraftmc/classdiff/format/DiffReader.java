@@ -10,6 +10,7 @@ import org.objectweb.asm.tree.*;
 import java.util.*;
 
 public class DiffReader {
+    private int[] constantOffsets;
     private final PatchReader<String> classPatchReader = new PatchReader<>(reader -> {
         reader.skip(2);
         return readClass(reader.pointer() - 2);
@@ -21,8 +22,8 @@ public class DiffReader {
     });
     private final PatchReader<TypeAnnotationNode> typeAnnotationPatchReader = new PatchReader<>(this::readTypeAnnotation);
     private final PatchReader<MemberName> memberNamePatchReader = new PatchReader<>(reader -> {
-        reader.skip(4);
-        return new MemberName(readUtf8(reader.pointer() - 4), readUtf8(reader.pointer() - 2));
+        final int nameAndTypeOffset = constantOffsets[reader.readShort()];
+        return new MemberName(readUtf8(nameAndTypeOffset), readUtf8(nameAndTypeOffset + 2));
     });
     private final PatchReader<String> packagePatchReader = new PatchReader<>(reader -> {
         reader.skip(2);
@@ -32,7 +33,6 @@ public class DiffReader {
     private final byte[] contents;
 
     private int version;
-    private int[] constantOffsets;
     private String[] constantStringCache;
     private char[] charBuffer;
     private int startPos;
