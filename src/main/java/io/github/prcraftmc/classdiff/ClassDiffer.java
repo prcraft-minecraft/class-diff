@@ -564,7 +564,8 @@ public class ClassDiffer {
         final LabelMap originalMap = new LabelMap(original.instructions);
         final LabelMap modifiedMap = new LabelMap(modified.instructions);
 
-        if (!Equalizers.insnList(original.instructions, modified.instructions, originalMap, modifiedMap)) {
+        final boolean insnsEquals = Equalizers.insnList(original.instructions, modified.instructions, originalMap, modifiedMap);
+        if (!insnsEquals) {
             output.visitInsns(DiffUtils.diff(
                 new InsnListAdapter(original.instructions),
                 new InsnListAdapter(modified.instructions),
@@ -572,17 +573,28 @@ public class ClassDiffer {
             ), () -> modifiedMap);
         }
 
-        if (!Util.isNullOrEmpty(original.localVariables) || !Util.isNullOrEmpty(modified.localVariables)) {
+        if (!Equalizers.listEquals(
+            original.localVariables, modified.localVariables,
+            Equalizers.localVariableEqualizer(originalMap, modifiedMap)
+        ) || (!insnsEquals && (!Util.isNullOrEmpty(original.localVariables) || !Util.isNullOrEmpty(modified.localVariables)))) {
             output.visitLocalVariables(Util.nullToEmpty(modified.localVariables), modifiedMap);
         }
 
-        if (!original.tryCatchBlocks.isEmpty() || !modified.tryCatchBlocks.isEmpty()) {
+        if (!Equalizers.listEquals(
+            original.tryCatchBlocks, modified.tryCatchBlocks,
+            Equalizers.tryCatchBlockEqualizer(originalMap, modifiedMap)
+        ) || (!insnsEquals && (!original.tryCatchBlocks.isEmpty() || !modified.tryCatchBlocks.isEmpty()))) {
             output.visitTryCatchBlocks(modified.tryCatchBlocks, modifiedMap);
         }
 
         if (
-            !Util.isNullOrEmpty(original.invisibleLocalVariableAnnotations) ||
+            !Equalizers.listEquals(
+                original.invisibleLocalVariableAnnotations, modified.invisibleLocalVariableAnnotations,
+                Equalizers.localVariableAnnotationEqualizer(originalMap, modifiedMap)
+            ) || (!insnsEquals && (
+                !Util.isNullOrEmpty(original.invisibleLocalVariableAnnotations) ||
                 !Util.isNullOrEmpty(modified.invisibleLocalVariableAnnotations)
+            ))
         ) {
             output.visitLocalVariableAnnotations(
                 Util.nullToEmpty(modified.invisibleLocalVariableAnnotations), false, modifiedMap
@@ -590,8 +602,13 @@ public class ClassDiffer {
         }
 
         if (
-            !Util.isNullOrEmpty(original.visibleLocalVariableAnnotations) ||
-                !Util.isNullOrEmpty(modified.visibleLocalVariableAnnotations)
+            !Equalizers.listEquals(
+                original.visibleLocalVariableAnnotations, modified.visibleLocalVariableAnnotations,
+                Equalizers.localVariableAnnotationEqualizer(originalMap, modifiedMap)
+            ) || (!insnsEquals && (
+                !Util.isNullOrEmpty(original.visibleLocalVariableAnnotations) ||
+                    !Util.isNullOrEmpty(modified.visibleLocalVariableAnnotations)
+            ))
         ) {
             output.visitLocalVariableAnnotations(
                 Util.nullToEmpty(modified.visibleLocalVariableAnnotations), true, modifiedMap
