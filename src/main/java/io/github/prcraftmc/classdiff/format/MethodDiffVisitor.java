@@ -74,9 +74,9 @@ public abstract class MethodDiffVisitor implements AnnotatedElementVisitor, Cust
     /**
      * @apiNote These insns may not have annotations and may use {@link SyntheticLabelNode}s.
      */
-    public void visitInsns(Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
+    public void visitInsns(int unpatchedInsnCount, Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
         if (delegate != null) {
-            delegate.visitInsns(patch, patchedLabelMap);
+            delegate.visitInsns(unpatchedInsnCount, patch, patchedLabelMap);
         }
     }
 

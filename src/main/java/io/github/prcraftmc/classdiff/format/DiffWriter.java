@@ -627,11 +627,12 @@ public class DiffWriter extends DiffVisitor {
             }
 
             @Override
-            public void visitInsns(Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
-                super.visitInsns(patch, patchedLabelMap);
+            public void visitInsns(int unpatchedInsnCount, Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
+                super.visitInsns(unpatchedInsnCount, patch, patchedLabelMap);
 
                 beginAttr("Insns");
                 labelMap = patchedLabelMap.get();
+                vector.putShort(unpatchedInsnCount);
                 new PatchWriter<AbstractInsnNode>(
                     (vec, value) -> writeInsn(vec, value, labelMap)
                 ).write(vector, patch);

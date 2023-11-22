@@ -388,10 +388,11 @@ public class DiffReader {
                         visitor.visitMaxs(reader.readShort(), reader.readShort());
                         break;
                     case "Insns": {
+                        final int unpatchedInsnCount = reader.readShort();
                         final Patch<AbstractInsnNode> patch = new PatchReader<>(this::readInsn)
                             .readPatch(reader, new InsnListAdapter(node.instructions));
                         final MethodNode fNode = node;
-                        visitor.visitInsns(patch, Util.lazy(() -> { // We need to apply the patch to calculate this
+                        visitor.visitInsns(unpatchedInsnCount, patch, Util.lazy(() -> { // We need to apply the patch to calculate this
                             final Map<LabelNode, LabelNode> clonedLabels = new HashMap<>();
                             for (final AbstractInsnNode insn : fNode.instructions) {
                                 if (insn instanceof LabelNode) {

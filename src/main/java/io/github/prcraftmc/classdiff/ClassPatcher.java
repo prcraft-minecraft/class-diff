@@ -711,9 +711,17 @@ public class ClassPatcher extends DiffVisitor {
             }
 
             @Override
-            public void visitInsns(Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
+            public void visitInsns(int unpatchedInsnCount, Patch<AbstractInsnNode> patch, Supplier<LabelMap> patchedLabelMap) {
                 if (insnsFrozen) {
                     throw new IllegalStateException("Cannot call ClassPatcher.visitMethod().visitInsns() after freeze");
+                }
+
+                if (unpatchedInsnCount != fMethodNode.instructions.size()) {
+                    throw new IllegalArgumentException(
+                        "Instruction size for " + name + descriptor + " was " + fMethodNode.instructions.size() + ". "
+                            + unpatchedInsnCount + " instructions were expected.\nDouble check you are patching the same"
+                            + " file the diff is for, and that you are passing the same flags to ClassReader.accept()."
+                    );
                 }
 
                 final Map<LabelNode, LabelNode> clonedLabels = new HashMap<>();

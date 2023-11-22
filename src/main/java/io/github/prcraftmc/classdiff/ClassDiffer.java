@@ -466,7 +466,7 @@ public class ClassDiffer {
                     }
                     final LabelMap labelMap = new LabelMap(node.instructions);
                     if (node.instructions.size() > 0) {
-                        visitor.visitInsns(DiffUtils.diff(
+                        visitor.visitInsns(0, DiffUtils.diff(
                             Collections.emptyList(),
                             new InsnListAdapter(node.instructions),
                             Equalizers.insnEqualizer(LabelMap.EMPTY, labelMap)
@@ -566,7 +566,7 @@ public class ClassDiffer {
 
         final boolean insnsEquals = Equalizers.insnList(original.instructions, modified.instructions, originalMap, modifiedMap);
         if (!insnsEquals) {
-            output.visitInsns(DiffUtils.diff(
+            output.visitInsns(original.instructions.size(), DiffUtils.diff(
                 new InsnListAdapter(original.instructions),
                 new InsnListAdapter(modified.instructions),
                 Equalizers.insnEqualizer(originalMap, modifiedMap)
