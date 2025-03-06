@@ -15,8 +15,8 @@ repositories {
 }
 
 dependencies {
-    api("org.ow2.asm:asm:9.5")
-    api("org.ow2.asm:asm-tree:9.5")
+    api("org.ow2.asm:asm:9.7.1")
+    api("org.ow2.asm:asm-tree:9.7.1")
 
     compileOnly("org.jetbrains:annotations:24.0.1")
 

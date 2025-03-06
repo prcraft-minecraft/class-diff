@@ -31,7 +31,13 @@ public class ReflectUtils {
     static {
         try {
             NEW_ATTRIBUTE = Attribute.class.getDeclaredConstructor(String.class);
-            ATTRIBUTE_CONTENT = Attribute.class.getDeclaredField("content");
+            Field attributeContent;
+            try {
+                attributeContent = Attribute.class.getDeclaredField("content");
+            } catch (NoSuchFieldException e) {
+                attributeContent = Attribute.class.getDeclaredField("cachedContent");
+            }
+            ATTRIBUTE_CONTENT = attributeContent;
             NEW_ATTRIBUTE.setAccessible(true);
             ATTRIBUTE_CONTENT.setAccessible(true);
 
@@ -68,7 +74,11 @@ public class ReflectUtils {
 
     public static byte[] getAttributeContent(Attribute attribute) {
         try {
-            return (byte[])ATTRIBUTE_CONTENT.get(attribute);
+            if (ATTRIBUTE_CONTENT.getType() == byte[].class) {
+                return (byte[])ATTRIBUTE_CONTENT.get(attribute);
+            } else {
+                return getByteVectorData((ByteVector) ATTRIBUTE_CONTENT.get(attribute));
+            }
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }
@@ -76,7 +86,12 @@ public class ReflectUtils {
 
     public static void setAttributeContent(Attribute attribute, byte[] content) {
         try {
-            ATTRIBUTE_CONTENT.set(attribute, content);
+            if (ATTRIBUTE_CONTENT.getType() == byte[].class) {
+                ATTRIBUTE_CONTENT.set(attribute, content);
+            } else {
+                setByteVectorLength((ByteVector) ATTRIBUTE_CONTENT.get(attribute), content.length);
+                BYTE_VECTOR_DATA.set(ATTRIBUTE_CONTENT.get(attribute), content);
+            }
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }
